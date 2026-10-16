@@ -4,7 +4,7 @@ A design for turning octo from a reactive assistant (user asks, agent answers)
 into a **proactive resident agent**: an agent with its own heartbeat that
 notices, decides, acts, and occasionally speaks first.
 
-Status: vision-level design, converged in discussion 2026-10-16. No code yet.
+Status: vision-level design. No code yet.
 
 ## Motivation
 
@@ -27,8 +27,8 @@ Proactivity is the direction that converts those two assets into a product.
 
 ## What this is NOT (rejected framings)
 
-These were considered and deliberately rejected as *the product* (some
-survive as internal machinery, see below):
+These are rejected as *the product* (some survive as internal machinery,
+see below):
 
 1. **A smart-alerting system** (user-configured watchers: collector → SQL
    condition → agent narrates → notify). This is a monitoring system with an
@@ -41,8 +41,8 @@ survive as internal machinery, see below):
    but it degrades in three places:
    - **Token cost at high frequency.** A 5-minute cron is ~288 agent turns
      per day, each carrying a full system prompt, mostly to conclude
-     "nothing to report". Two orders of magnitude more than a zero-token
-     gate.
+     "nothing to report" — where a deterministic gate costs zero tokens
+     on the no-change path.
    - **Silence and dedup rely on model discipline**, not structure. 95%
      compliance means the 5% is a duplicate 2am notification. Proactive
      products die from that 5%.
@@ -52,8 +52,7 @@ survive as internal machinery, see below):
    interesting.
 
 The watcher machinery (cheap collectors, zero-token gates, a notification
-policy layer) is demoted to what it should be: the agent's **sensory
-periphery**, not the product.
+policy layer) serves as the agent's **sensory periphery**, not the product.
 
 ## Vision: three jumps beyond alerting
 
@@ -66,7 +65,8 @@ heartbeat faces a hundred candidate concerns and must pick the three that
 matter.
 
 **Jump 2 — from "tell you" to "act first, report after".** Not "CI failed"
-but "CI failed, it's the same flake as #2452, I retried it, it's green".
+but "CI failed, it's the same flake as last month, I retried it, it's
+green".
 This implies **graduated autonomy**: reversible small actions are taken
 directly (retry CI, rebuild a deleted worktree branch); irreversible or
 large actions are prepared as proposals awaiting approval (open the
@@ -89,8 +89,8 @@ message — not the alert — is the product.
 
 1. **PR guardian.** Command sense polls `gh pr view` every 5 minutes. On CI
    failure or new review, the agent reads the logs first, then pushes:
-   > PR #2481 CI failed: `TestHandleWSUserMessage` timeout. Same flake as
-   > #2452 last month (Windows slow-IO race). Suggest retry, no code change.
+   > PR #NNNN CI failed: `TestSomeHandler` timeout. Same flake as #MMMM
+   > last month (Windows slow-IO race). Suggest retry, no code change.
 
    GitHub tells you *what*; the agent tells you *why* and *so-what* — it can
    only do the second because it has your history.
@@ -100,10 +100,10 @@ message — not the alert — is the product.
 
    Threshold alerts report what already happened; observation history lets
    the agent report what *will* happen.
-3. **Worktree bodyguard (pure dogfood).** `~/octo-agent-wt/` worktrees get
+3. **Worktree bodyguard (pure dogfood).** Local git worktrees sometimes get
    cleaned externally along with their branches. On detecting a vanished
    worktree with unpushed commits:
-   > `wt/issue-2457` was cleaned up, but commit `a1b2c3d` is still in the
+   > `wt/issue-NNNN` was cleaned up, but commit `a1b2c3d` is still in the
    > object store — I've recreated the branch. No action needed.
 
 ### Opportunity stories (judge whether it's worth my attention)
@@ -111,20 +111,21 @@ message — not the alert — is the product.
 4. **Dependency release interpretation.** HTTP sense watches GitHub
    releases of key go.mod dependencies. On a new tag, the agent reads the
    release notes and greps the user's code for impact:
-   > chi v5.2.0 fixes the middleware panic you hit in August (noted in
-   > #1978). Your routes don't touch the changed code path — low-risk
-   > upgrade, recommended.
-5. **Stock anomaly interpretation.** Minute-level quotes already flow into
-   `stocks.db` (zero new collection cost). SQL condition: >2% drop in 5 min
-   or volume spike. The agent then searches news before pushing:
-   > 茅台 fell 2.3% in 10 minutes from 14:20 while the index was flat.
-   > Midday channel wholesale-price data came out. Stock-specific news, not
-   > a systemic drop.
+   > `example/lib` vX.Y.Z fixes the panic you hit in August (noted in
+   > #NNNN). Your code doesn't touch the changed path — low-risk upgrade,
+   > recommended.
+5. **Stock anomaly interpretation.** Minute-level quotes for a watchlist
+   already flow into a named database (zero new collection cost). SQL
+   condition: >2% drop in 5 min or volume spike. The agent then searches
+   news before pushing:
+   > Stock X fell 2.3% in 10 minutes from 14:20 while the index was flat.
+   > Sector pricing data came out at midday. Stock-specific news, not a
+   > systemic drop.
 
 ### Filter stories (absorb noise on my behalf)
 
 6. **Information diet.** HTTP sense watches a dozen changelogs/blogs. The
-   agent's job is to *kill 90% silently* — read, judge "roy doesn't care",
+   agent's job is to *kill 90% silently* — read, judge "the user doesn't care",
    archive. Survivors go into one evening digest. The notification layer's
    value here is not "interrupt less" but "the agent did the reading so you
    never have to".
@@ -133,14 +134,15 @@ message — not the alert — is the product.
 
 7. **Break reminder.** After 4 hours of continuous screen activity (front
    app + input-idle signals on macOS):
-   > 连续工作 4 小时了，起来走走，喝杯水。
+   > You've been at it for 4 hours straight. Get up, walk around, have
+   > some water.
 
    Low-stakes, high-frequency, personal — the perfect **trust-training
-   ground** where the agent learns what interruptions roy tolerates.
+   ground** where the agent learns what interruptions the user tolerates.
 8. **Camera import.** A USB/SD insertion event (IOKit / `system_profiler`
    diff) triggers:
-   > 检测到相机插入。要导入照片吗？导入后按日期+地点归档到
-   > `~/Photos/2026-10/` 老规矩？
+   > Camera detected. Import the photos and file them by date + place
+   > under your photo library, same as usual?
 9. **Fitness scheduling.** Reads the calendar (EventKit / .ics), proposes a
    weekly plan around existing meetings, then reminds.
 
@@ -181,7 +183,8 @@ way of thinking from which such ideas grow. Skeleton:
 
 2. The heartbeat loop (what each wake-up does)
    Observe: query the senses — what changed in the world?
-   Relate: how do those changes intersect my agenda and the user's近况?
+   Relate: how do those changes intersect my agenda and the user's
+           current situation?
    Decide: act / speak / stay silent. Silence is the default and the
            most common correct answer.
    Record: update agenda and journal; write new understanding of the
@@ -231,7 +234,7 @@ state files:
 Senses are cheap, deterministic, zero-token peripherals feeding the
 heartbeat. Two families:
 
-- **Data-plane senses** (from the watcher discussion): `http_json`
+- **Data-plane senses**: `http_json`
   (arbitrary APIs, JSON extraction), `command` (any CLI — the escape hatch
   that makes coverage universal from day one), `sql_query` (named
   databases), `file` (mtime/hash/grep), `git`, `system` (processes, ports,
@@ -240,11 +243,10 @@ heartbeat. Two families:
   (frontmost app + input idle), hardware events (USB/SD insertion),
   calendar (EventKit/.ics).
 
-Design rule from the watcher discussion that still stands: **conditions
-stay uniform** — observations normalize into timestamped rows so that
-trend conditions ("5% drop within an hour") are plain SQL over history.
-New sense = one small testable implementation; the judgment layer does not
-fork.
+Design rule: **conditions stay uniform** — observations normalize into
+timestamped rows so that trend conditions ("5% drop within an hour") are
+plain SQL over history. New sense = one small testable implementation; the
+judgment layer does not fork.
 
 ## Heartbeat cadence and cost model
 
