@@ -161,14 +161,35 @@ as possible, saving every token for interpretation and composition.
 
 ## Agenda: where it comes from
 
-Decided: the agenda grows **autonomously from memory and session history**.
-Direct user instructions are corrections, not the primary source — they
-carry top priority but should be rare.
+The agenda grows **autonomously from memory and session history**. Direct
+user instructions are corrections, not the primary source — they carry top
+priority but should be rare.
 
 Implication: **memory quality becomes the bottleneck.** An agent that
 forgets cannot have an agenda; the agenda is only as good as what the
 system has retained about the user's projects, deadlines, preferences, and
-past corrections.
+past corrections. Most existing memory is written to answer questions, not
+to direct attention, and much of it is stale — an agenda inferred from it
+naively drifts toward the past.
+
+### Propose first, then activate
+
+A new user has no memory, so a purely inferred agenda is empty on day one —
+exactly when the agent is most likely to be switched off. New agenda
+entries therefore start as **proposals**: "You just opened PR #NNNN — want
+me to watch it until it merges?" One tap activates it. That tap is also a
+training signal, so cold start and learning share one mechanism. As trust
+accumulates, entries of a kind the user always accepts can skip the
+proposal step.
+
+### Every entry carries provenance and an expiry
+
+- **Provenance**: which memory entry or session the entry was inferred
+  from. Without it, "why did it suddenly start watching X?" is
+  unanswerable, and a bad memory silently produces bad attention.
+- **Expiry / retirement condition**: "until the PR merges", "for the next
+  two weeks". An agenda that only grows becomes the noise it was meant to
+  filter.
 
 ## The seed prompt (constitution)
 
@@ -200,8 +221,11 @@ way of thinking from which such ideas grow. Skeleton:
    Interruption is a scarce resource; trust is earned.
    Reversible small acts: just do them, report optionally.
    Irreversible acts: prepare a proposal, wait for approval.
-   A pattern of unanswered interruptions is a learning signal — record
-   it in memory and recalibrate.
+   Explicit feedback ("useful" / "don't tell me this kind again") is the
+   strong signal; a pattern of unanswered interruptions is a weak one —
+   record both in memory and recalibrate.
+   Anything triggered by external content (web pages, release notes,
+   news) is proposal-only, never acted on directly.
 
 5. Seed directions (inspiration, not a list)
    Is anything in the user's work stalled?
@@ -216,9 +240,12 @@ Two deliberate choices:
   appeared in the environment" grows camera-import and a hundred other
   things; enumerating tasks would cap the agent's imagination at the
   author's.
-- **§4 defines "user didn't respond" as a learning signal.** This feedback
-  loop is what makes the agent smarter over time; without it, it is frozen
-  at day one forever.
+- **§4 makes user feedback a learning signal.** This feedback loop is what
+  makes the agent smarter over time; without it, it is frozen at day one
+  forever. Non-response alone is weak evidence — the user may simply be
+  busy — and treating it as the main signal teaches the agent to go
+  quiet until it is useless. Hence the explicit one-tap feedback on every
+  push.
 
 ### Working memory
 
@@ -250,26 +277,50 @@ judgment layer does not fork.
 
 ## Heartbeat cadence and cost model
 
-Open design point, current leaning — two tiers:
+Any LLM call carries a system prompt of thousands of tokens, so a
+"light" LLM heartbeat every few minutes is not cheap. The high-frequency
+path therefore contains **no LLM at all**:
 
-- **Cheap high-frequency heartbeat** (minutes): read sense deltas + compare
-  against agenda. A light turn, tens to hundreds of tokens; often just the
-  gate evaluation with no LLM at all.
-- **Expensive low-frequency deep reflection** (once or twice a day):
-  re-read memory, review the journal, restructure the agenda.
+- **Deep reflection** (LLM, once or twice a day, plus on demand when a
+  session ends): re-read memory and recent sessions, review the journal,
+  restructure the agenda. Each agenda entry is **compiled into sense
+  subscriptions and trigger conditions** — in effect, a set of watchers.
+- **High-frequency heartbeat** (zero LLM, minutes): run those watchers.
+  Only when a condition fires is the LLM woken, to interpret the change
+  against the entry's context and decide act / speak / stay silent.
 
-The two-tier rhythm is what makes a continuous agent economically viable.
+This is what separates the design from the rejected smart-alerting
+framing: the watcher machinery is the same, but **the agent writes the
+watchers, inferred from memory, instead of the user**. The two-tier rhythm
+is what makes a continuous agent economically viable.
 
 ## Interruption discipline (the notification layer)
 
+The design rejects cron + prompt engineering because silence and dedup
+there rely on model discipline. The same standard applies to the agent's
+riskier judgments, so restraint is **structural**, not left to the model:
+
 - Silence is the default; interruption is a scarce resource.
-- Graduated autonomy: reversible small acts executed directly; irreversible
-  ones become proposals.
+- **Graduated autonomy, declared per action, not judged per run.** Whether
+  an action is reversible is a property of the tool/action, tagged ahead of
+  time, and enforced by the existing permission gate (scheduled tasks
+  already run under an `auto` / `strict` permission mode). The model does
+  not decide on the spot that "retrying CI" is harmless — a retry can also
+  mask a real flake and costs CI minutes.
+- **Untrusted content never triggers direct action.** Senses read external
+  content (changelogs, release notes, news pages); any chain that starts
+  from such content can only produce a proposal. Otherwise a single crafted
+  release note becomes a prompt-injection path to an autonomous action.
 - Unified policy — quiet hours, daily budget, digest batching — lives in
   **one** place that every proactive path goes through. It is the only
   component that needs to understand restraint.
-- Non-response is data: unanswered interruptions are recorded and used to
-  recalibrate.
+- **Channel is part of the cost.** The same policy layer picks where a
+  message lands: guardian messages go to a desktop or IM notification,
+  opportunity messages wait in the Web UI until the user next opens it,
+  filter results only appear in the digest.
+- **Feedback is explicit.** Every push carries one-tap "useful" / "don't
+  tell me this kind again". An explicit mute is a strong signal;
+  non-response is recorded but weighted weakly.
 
 ## Failure mode to design against
 
@@ -281,6 +332,12 @@ harness-level engineering treating **rhythm, attention, autonomy, and
 trust** as first-class engineering concerns. Which is what a harness is
 for.
 
+The opposite failure is just as fatal: an agent so quiet that the user
+forgets it exists. If most of its work is silent, its value is invisible
+and it gets switched off anyway. The silent work therefore needs a
+**visible but non-interrupting surface** — an evening digest or a journal
+view showing what it read, handled, and decided not to mention today.
+
 ## Open questions
 
 1. **Agenda arbitration.** When self-grown agenda entries conflict with
@@ -288,8 +345,33 @@ for.
 2. **Cadence specifics.** Exact frequencies and token budgets for the two
    heartbeat tiers.
 3. **Runtime shape in octo.** A new resident entity beside cron tasks, or
-   cron + wakeup evolved? Relationship to channels, memory, and named
-   databases needs a follow-up technical design.
-4. **MVP slice.** Candidates: the break reminder (story 7 — trust-training
-   ground, OS-sense validation) or the PR guardian (story 1 — immediate
-   dogfood value). Decide after the cadence model is set.
+   an evolution of the existing pieces — the scheduler
+   (`internal/scheduler/`), `schedule_wakeup`
+   (`internal/tools/schedule_wakeup.go`), and the server loop
+   (`internal/server/loop.go`)? Relationship to
+   channels, memory, and named databases needs a follow-up technical
+   design.
+
+## MVP: PR guardian, grown from a session
+
+The MVP is the PR guardian (story 1). The break reminder is rejected as the
+first slice: it is a fixed rule that never touches the agenda, so it cannot
+validate the core thesis, and it needs macOS Accessibility / Input
+Monitoring permissions before it can sense anything.
+
+The PR guardian must **not** be built as "configure a PR watcher". It must
+exercise the whole loop:
+
+1. The user opens a PR during a normal session.
+2. Deep reflection infers an agenda entry from that session and proposes
+   it ("watch PR #NNNN until it merges?"), with provenance pointing at the
+   session.
+3. The accepted entry compiles into a `command` sense running `gh` plus a
+   trigger condition (CI status change, new review).
+4. The zero-LLM heartbeat runs the watcher; on a trigger the LLM reads the
+   logs and the user's history and composes the message.
+5. When the PR merges, the entry retires itself.
+
+Done means: one PR goes through steps 1–5 on a real repo with no
+hand-written watcher, no LLM call on no-change heartbeats, and the push
+carrying the one-tap feedback controls.
