@@ -322,6 +322,62 @@ riskier judgments, so restraint is **structural**, not left to the model:
   tell me this kind again". An explicit mute is a strong signal;
   non-response is recorded but weighted weakly.
 
+## The desktop pet as the agent's body
+
+The desktop app already has a pet: a small transparent always-on-top
+octopus that mirrors the hub's aggregate activity (`Server.Activity()` in
+`internal/server/activity.go`, polled by `cmd/octo-desktop/pet.go`) as
+`idle` / `busy` / `ask`, and dozes off into `sleep` after the hub has been
+idle for a while. A click is a cosmetic poke; a double-click toggles the
+main window. Today it only shows what the user started. A proactive agent
+gives it something of its own to say, and the pet in turn solves several
+of the problems above.
+
+**An ambient interruption tier.** The pet sits between "desktop
+notification" and "wait in the Web UI until next opened": a change of pose
+that the user notices in peripheral vision and can ignore at zero cost.
+The policy layer gains a level that interrupts nothing:
+
+| Tier | Surface | Used for |
+|---|---|---|
+| Interrupt | desktop / IM notification | guardian messages |
+| Ambient | pet pose ("has something for you") | opportunity messages, agenda proposals |
+| Pull | digest / journal view | filter results, silent actions |
+
+**Pull, not push.** A click on the pet while it "has something" opens a
+small bubble with the message instead of a poke. The user decides when to
+be interrupted, which is the most trust-preserving form of proactivity.
+
+**The feedback and proposal UI.** The bubble carries the one-tap controls:
+"useful" / "don't tell me this kind again" for messages, accept / dismiss
+for agenda proposals ("watch PR #NNNN until it merges?"). Feedback given
+right where the message was read is far more likely to be given at all,
+which feeds the learning signal directly.
+
+**The visible surface for silent work.** The too-quiet failure mode needs
+a non-interrupting place where the agent's value shows. The pet carries a
+trace of it — e.g. a different idle pose after it handled something
+silently — and the bubble lists what it did today, linking to the journal.
+
+**Gentle rhythm stories.** The break reminder becomes the pet stretching
+or yawning rather than a notification. The pet already tracks idleness;
+its body language is the softest possible interruption for low-stakes,
+high-frequency nudges.
+
+Constraints:
+
+- **Not the only channel.** The pet exists only in the desktop app; CLI,
+  `octo serve` and IM users never see it, and a hidden pet sees nothing.
+  It is one tier the policy layer may choose, never a required path —
+  anything awaiting approval must also be reachable elsewhere.
+- **Keep the pet a mirror, not a brain.** It stays a renderer of hub state:
+  the hub exposes "pending proactive items" next to `Activity()` and the
+  pet keeps polling. Decisions about what to show stay in the policy layer.
+- **Cute makes nagging worse, not better.** A character that pesters wears
+  out its welcome faster than a plain notification. The ambient pose must
+  never animate for attention (no bouncing, no looping wave); only `ask`
+  — a turn actually blocked on the user — may be insistent.
+
 ## Failure mode to design against
 
 The industry-wide failure mode of proactive agents is the **tamagotchi
@@ -351,6 +407,11 @@ view showing what it read, handled, and decided not to mention today.
    (`internal/server/loop.go`)? Relationship to
    channels, memory, and named databases needs a follow-up technical
    design.
+4. **Pet bubble shape.** The pet window is a fixed small square; a message
+   bubble needs either a larger window or a second one, and on Windows the
+   pet window cannot pass clicks through by shape, so a larger window
+   blocks more of the desktop. Which one, and where the bubble anchors when
+   the pet sits near a screen edge?
 
 ## MVP: PR guardian, grown from a session
 
