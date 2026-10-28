@@ -22,7 +22,7 @@
 #    OCTO_ACCESS_KEY=xxx   自定义访问密钥（默认随机生成；重复运行会沿用旧的）
 #    OCTO_ADMIN_USER / OCTO_ADMIN_PASS  免交互指定登录账号密码（不设则安装时询问）
 #    SWAP_TARGET_MB=2048   swap 目标总量，0 表示不动 swap
-#    OCTO_VERSION=1.17.21  指定 octo 版本（默认最新）
+#    OCTO_VERSION=1.17.21-m1  指定 octo 版本（默认镜像仓库最新 Release；-m1 为手机回车换行补丁版）
 #    OCTO_UNINSTALL_YES=1 / OCTO_PURGE=1|0  卸载时免确认 / 是否删除数据
 #    OCTO_REPO=owner/repo  下载 octo 的 GitHub 仓库（默认 manatsu525/octo-agent）
 #
