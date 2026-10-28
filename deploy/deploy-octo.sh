@@ -211,7 +211,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 CONF = os.environ.get("OCTO_AUTH_CONF", "/etc/octo-auth/auth.json")
 LISTEN = ("127.0.0.1", int(os.environ.get("OCTO_AUTH_PORT", "8090")))
 COOKIE = "octo_session"
-SESSION_DAYS = 30
+SESSION_DAYS = 365
 MAX_FAILS, LOCK_SECS = 5, 900
 
 with open(CONF) as f:
@@ -338,8 +338,15 @@ chmod 755 /usr/local/bin/octo-auth
 if [ "$SET_CRED" = 1 ]; then
   OCTO_ADMIN_USER="$OCTO_ADMIN_USER" OCTO_ADMIN_PASS="$OCTO_ADMIN_PASS" python3 - "$AUTH_DIR/auth.json" <<'PY'
 import hashlib, json, os, secrets, sys
-salt = secrets.token_bytes(16); it = 300000
 pw = os.environ["OCTO_ADMIN_PASS"].encode()
+try:  # 账号密码没变就保持原样，已登录的浏览器不会被踢下线
+    old = json.load(open(sys.argv[1]))
+    if old["user"] == os.environ["OCTO_ADMIN_USER"] and \
+       hashlib.pbkdf2_hmac("sha256", pw, bytes.fromhex(old["salt"]), old["iter"]).hex() == old["hash"]:
+        sys.exit(0)
+except (OSError, ValueError, KeyError):
+    pass
+salt = secrets.token_bytes(16); it = 300000
 json.dump({"user": os.environ["OCTO_ADMIN_USER"], "salt": salt.hex(), "iter": it,
            "hash": hashlib.pbkdf2_hmac("sha256", pw, salt, it).hex(),
            "secret": secrets.token_hex(32)}, open(sys.argv[1], "w"))
