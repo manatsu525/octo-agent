@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isTouchPrimary } from '../lib/composerKeys'
   // Mobile chat detail: renders a session's transcript and sends replies, wired
   // to the shared stores via chatWiring (which reuses the same store helpers the
   // desktop uses). Tool calls render through the desktop ToolGroup (same
@@ -242,7 +243,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey && !composing) {
+    if (e.key === 'Enter' && !e.shiftKey && !composing && !isTouchPrimary()) {
       e.preventDefault()
       send()
     }

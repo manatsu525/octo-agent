@@ -2,8 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { submitIntent } from './composerKeys'
 
 describe('submitIntent', () => {
+  it('plain Enter is a newline on touch devices', () => {
+    expect(submitIntent({ key: 'Enter' }, true)).toBeNull()
+    expect(submitIntent({ key: 'Enter', ctrlKey: true }, true)).toBe('queue')
+  })
+
   it('plain Enter sends', () => {
-    expect(submitIntent({ key: 'Enter' })).toBe('send')
+    expect(submitIntent({ key: 'Enter' }, false)).toBe('send')
   })
 
   it('Cmd+Enter queues', () => {
