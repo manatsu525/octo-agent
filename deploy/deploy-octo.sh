@@ -13,7 +13,8 @@
 #    8. 预置两个免 key 的搜索 MCP：Keenable、Parallel（已有的 mcp.json 不覆盖）
 #
 #  用法（root）：
-#    bash deploy-octo.sh
+#    bash deploy-octo.sh              安装 / 升级 / 改登录密码
+#    bash deploy-octo.sh uninstall    卸载（会询问是否连聊天数据一起删）
 #  可选环境变量：
 #    OCTO_PORT=8557        对外 HTTPS 端口
 #    OCTO_USER=octo        运行 octo 的系统用户
@@ -22,6 +23,7 @@
 #    OCTO_ADMIN_USER / OCTO_ADMIN_PASS  免交互指定登录账号密码（不设则安装时询问）
 #    SWAP_TARGET_MB=2048   swap 目标总量，0 表示不动 swap
 #    OCTO_VERSION=1.17.21  指定 octo 版本（默认最新）
+#    OCTO_UNINSTALL_YES=1 / OCTO_PURGE=1|0  卸载时免确认 / 是否删除数据
 #    OCTO_REPO=owner/repo  下载 octo 的 GitHub 仓库（默认 manatsu525/octo-agent）
 #
 #  重复运行是安全的：会升级 octo、保留数据和密钥、重写 nginx/systemd 配置。
@@ -41,6 +43,63 @@ die()  { printf '\033[1;31m[octo-deploy]\033[0m %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "请用 root 运行"
 [ -f /etc/debian_version ] || die "只支持 Debian 系统"
 command -v systemctl >/dev/null || die "需要 systemd"
+
+# ---------------------------------------------------------------- 卸载
+if [ "${1:-}" = "uninstall" ]; then
+  ask() { # ask <提示> <默认Y/N>，非交互时取默认
+    local a; [ -r /dev/tty ] && read -r -p "$1" a </dev/tty 2>/dev/null || a=""
+    case "${a:-$2}" in [Yy]*) return 0 ;; *) return 1 ;; esac
+  }
+  if [ "${OCTO_UNINSTALL_YES:-}" != 1 ]; then
+    ask "确认卸载 octo（服务、登录页、nginx 配置、证书、swap 文件）？[y/N] " N || die "已取消"
+  fi
+  OCTO_HOME=$(getent passwd "$OCTO_USER" | cut -d: -f6 || true)
+  PURGE="${OCTO_PURGE:-}"
+  if [ -z "$PURGE" ] && [ -n "$OCTO_HOME" ]; then
+    ask "同时删除聊天记录、配置和工作目录（$OCTO_HOME）？删了无法恢复 [y/N] " N && PURGE=1 || PURGE=0
+  fi
+  log "停止服务..."
+  for s in octo octo-auth; do
+    systemctl disable --now "$s" >/dev/null 2>&1 || true
+    rm -f "/etc/systemd/system/$s.service"
+  done
+  systemctl daemon-reload
+  rm -f /usr/local/bin/octo /usr/local/bin/octo-auth
+  rm -rf /etc/octo-auth
+  id octo-auth >/dev/null 2>&1 && userdel octo-auth 2>/dev/null || true
+
+  log "清理 nginx 配置和证书..."
+  rm -f /etc/nginx/conf.d/octo.conf
+  rm -rf /etc/nginx/octo-ssl
+  if [ -z "$(ls -A /etc/nginx/conf.d /etc/nginx/sites-enabled 2>/dev/null)" ]; then
+    systemctl disable --now nginx >/dev/null 2>&1 || true   # 没有别的站点就停掉 nginx（软件包保留）
+  elif nginx -t -q 2>/dev/null; then
+    systemctl reload nginx || true
+  fi
+  if command -v ufw >/dev/null && ufw status | grep -q active; then
+    ufw delete allow "$OCTO_PORT/tcp" >/dev/null 2>&1 || true
+  fi
+
+  if [ -f /swapfile.octo ]; then
+    log "移除 /swapfile.octo..."
+    swapoff /swapfile.octo 2>/dev/null || warn "swap 正在使用中无法关闭，已保留 /swapfile.octo"
+    if ! swapon --show=NAME --noheadings | grep -q '/swapfile.octo'; then
+      rm -f /swapfile.octo
+      sed -i '\#/swapfile.octo#d' /etc/fstab
+    fi
+  fi
+  rm -f /etc/sysctl.d/90-octo-swap.conf
+
+  if [ "$PURGE" = 1 ] && id "$OCTO_USER" >/dev/null 2>&1; then
+    log "删除用户 $OCTO_USER 及其数据..."
+    pkill -u "$OCTO_USER" 2>/dev/null || true; sleep 1
+    userdel -r "$OCTO_USER" 2>/dev/null || true
+  elif [ -n "$OCTO_HOME" ]; then
+    log "已保留用户 $OCTO_USER 和数据目录 $OCTO_HOME（重新安装会接着用）"
+  fi
+  log "卸载完成。依赖软件包（nginx、git 等）未删除。"
+  exit 0
+fi
 
 # 端口冲突检查（8557 被别的程序占用就停下，不去动它）
 if ss -ltnH "sport = :$OCTO_PORT" 2>/dev/null | grep -q . ; then
