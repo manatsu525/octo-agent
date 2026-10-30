@@ -3,6 +3,7 @@ package permission
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -360,6 +361,14 @@ func TestDefaultRules_TerminalWindowsDangerous(t *testing.T) {
 		// But routine maintenance on a non-system drive is ask, not deny.
 		"chkdsk E: /f": Ask,
 		"sfc /scannow": Ask,
+	}
+	if runtime.GOOS != "windows" {
+		// `format` is only hard-denied on Windows; elsewhere it falls to ask.
+		for cmd, want := range cases {
+			if strings.HasPrefix(cmd, "format ") && want == Deny {
+				cases[cmd] = Ask
+			}
+		}
 	}
 	for cmd, want := range cases {
 		if got := e.Check("terminal", map[string]any{"command": cmd}); got != want {
