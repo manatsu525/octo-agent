@@ -25,7 +25,7 @@
 #    OCTO_ACCESS_KEY=xxx   自定义访问密钥（默认随机生成；重复运行会沿用旧的）
 #    OCTO_ADMIN_USER / OCTO_ADMIN_PASS  免交互指定登录账号密码（不设则安装时询问）
 #    SWAP_TARGET_MB=2048   swap 目标总量，0 表示不动 swap
-#    OCTO_VERSION=1.17.21-m1  指定 octo 版本（默认镜像仓库最新 Release；-m1 为手机回车换行补丁版）
+#    OCTO_VERSION=1.17.21-m2  指定 octo 版本（默认镜像仓库最新 Release；m1 手机回车换行，m2 再修权限误拦）
 #    OCTO_SUDO=1           给 octo 用户免密 sudo（默认 1；0 表示不给并移除）
 #    OCTO_FILES_KEEP_DAYS=7  /files/ 下载目录里的文件保留天数
 #    OCTO_KEEP_CRED=1      已有登录账号时免交互直接保留（升级用）
