@@ -30,6 +30,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -930,7 +931,6 @@ func applyHardcodedDenyRules(rules RuleSet) {
 		"^mkfs",                                        // make filesystem (mkfs, mkfs.ext4, …)
 		"^fdisk",                                       // partition manipulation
 		"^parted",                                      // partition manipulation
-		"^format",                                      // Windows filesystem format
 		"^diskpart",                                    // Windows partition / volume management
 		"^diskutil eraseDisk", "^diskutil eraseVolume", // macOS disk erase
 		"^diskutil secureErase", "^diskutil partitionDisk", // macOS wipe / partition
@@ -972,6 +972,11 @@ func applyHardcodedDenyRules(rules RuleSet) {
 				"^"+op+" "+dir,
 				"^"+op+` "`+dir)
 		}
+	}
+	// `format` is a Windows-only command; on Unix it collides with ordinary
+	// lines (heredoc/python bodies starting with "format…") after a newline.
+	if runtime.GOOS == "windows" {
+		hardTerminalDenies = append(hardTerminalDenies, "^format")
 	}
 	for _, pat := range hardTerminalDenies {
 		rules["terminal"] = append(rules["terminal"], Rule{Decision: Deny, Pattern: pat})
