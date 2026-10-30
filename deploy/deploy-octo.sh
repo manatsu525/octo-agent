@@ -6,11 +6,14 @@
 #    1. 安装依赖：curl tar ca-certificates openssl git ripgrep nginx(-light)
 #    2. 内存小于 2G 时把 swap 补到约 2G
 #    3. 从镜像仓库 manatsu525/octo-agent 安装 octo（校验 SHA-256），失败回退官方脚本
-#    4. 创建独立的非 root 用户 octo 运行服务（agent 能跑命令，别给它 root）
+#    4. 创建独立用户 octo 运行服务（默认带免密 sudo，见第 9 条）
 #    5. octo 只监听 127.0.0.1:8088，由 nginx 在公网端口提供自签名 HTTPS
 #    6. 生成随机访问密钥，systemd 托管、开机自启
 #    7. 加一层账号密码登录页（安装时交互输入管理员账号和密码）
 #    8. 预置两个免 key 的搜索 MCP：Keenable、Parallel（已有的 mcp.json 不覆盖）
+#    9. 给 octo 用户免密 sudo（agent 能装软件、改系统；不想要设 OCTO_SUDO=0）
+#   10. 文件下载目录 ~octo/Octo/files，登录后经 https://IP:端口/files/ 下载，
+#       每天自动清理超过 OCTO_FILES_KEEP_DAYS 天的文件；并告诉 agent 把交付文件放这里给链接
 #
 #  用法（root）：
 #    bash deploy-octo.sh              安装 / 升级 / 改登录密码
@@ -23,6 +26,9 @@
 #    OCTO_ADMIN_USER / OCTO_ADMIN_PASS  免交互指定登录账号密码（不设则安装时询问）
 #    SWAP_TARGET_MB=2048   swap 目标总量，0 表示不动 swap
 #    OCTO_VERSION=1.17.21-m1  指定 octo 版本（默认镜像仓库最新 Release；-m1 为手机回车换行补丁版）
+#    OCTO_SUDO=1           给 octo 用户免密 sudo（默认 1；0 表示不给并移除）
+#    OCTO_FILES_KEEP_DAYS=7  /files/ 下载目录里的文件保留天数
+#    OCTO_KEEP_CRED=1      已有登录账号时免交互直接保留（升级用）
 #    OCTO_UNINSTALL_YES=1 / OCTO_PURGE=1|0  卸载时免确认 / 是否删除数据
 #    OCTO_REPO=owner/repo  下载 octo 的 GitHub 仓库（默认 manatsu525/octo-agent）
 #
@@ -63,6 +69,9 @@ if [ "${1:-}" = "uninstall" ]; then
     systemctl disable --now "$s" >/dev/null 2>&1 || true
     rm -f "/etc/systemd/system/$s.service"
   done
+  systemctl disable --now octo-files-clean.timer >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/octo-files-clean.timer /etc/systemd/system/octo-files-clean.service
+  rm -f /etc/sudoers.d/90-octo
   systemctl daemon-reload
   rm -f /usr/local/bin/octo /usr/local/bin/octo-auth
   rm -rf /etc/octo-auth
@@ -111,7 +120,9 @@ fi
 # ---------------------------------------------------------------- 0. 登录账号
 AUTH_DIR=/etc/octo-auth
 SET_CRED=1
-if [ -z "${OCTO_ADMIN_USER:-}" ] || [ -z "${OCTO_ADMIN_PASS:-}" ]; then
+if [ "${OCTO_KEEP_CRED:-}" = 1 ] && [ -f "$AUTH_DIR/auth.json" ]; then
+  SET_CRED=0
+elif [ -z "${OCTO_ADMIN_USER:-}" ] || [ -z "${OCTO_ADMIN_PASS:-}" ]; then
   [ -r /dev/tty ] || die "非交互环境请用 OCTO_ADMIN_USER / OCTO_ADMIN_PASS 指定登录账号密码"
   if [ -f "$AUTH_DIR/auth.json" ]; then
     read -r -p "已有登录账号，是否保留？[Y/n] " keep </dev/tty
@@ -134,7 +145,7 @@ fi
 log "安装依赖..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl tar ca-certificates openssl git ripgrep python3 >/dev/null
+apt-get install -y -qq curl tar ca-certificates openssl git ripgrep python3 sudo zip unzip >/dev/null
 if ! dpkg -s nginx-light >/dev/null 2>&1 && ! dpkg -s nginx >/dev/null 2>&1; then
   apt-get install -y -qq nginx-light >/dev/null 2>&1 || apt-get install -y -qq nginx >/dev/null
 fi
@@ -228,6 +239,42 @@ EOF
   chown "$OCTO_USER:$OCTO_USER" "$MCP_FILE"; chmod 644 "$MCP_FILE"
 fi
 
+# 免密 sudo
+if [ "${OCTO_SUDO:-1}" = 1 ]; then
+  echo "$OCTO_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-octo
+  chmod 440 /etc/sudoers.d/90-octo
+  visudo -cf /etc/sudoers.d/90-octo >/dev/null || { rm -f /etc/sudoers.d/90-octo; warn "sudoers 校验失败，已跳过免密 sudo"; }
+else
+  rm -f /etc/sudoers.d/90-octo
+fi
+
+# 文件下载目录（octo 可读写，nginx 经 /files/ 提供下载）
+FILES_DIR="$OCTO_HOME/Octo/files"
+install -d -m 755 -o "$OCTO_USER" -g "$OCTO_USER" "$OCTO_HOME/Octo" "$FILES_DIR"
+chmod o+x "$OCTO_HOME" "$OCTO_HOME/Octo"
+KEEP_DAYS="${OCTO_FILES_KEEP_DAYS:-7}"
+cat > /etc/systemd/system/octo-files-clean.service <<EOF
+[Unit]
+Description=Clean octo download dir (files older than $KEEP_DAYS days)
+
+[Service]
+Type=oneshot
+User=$OCTO_USER
+ExecStart=/usr/bin/find $FILES_DIR -mindepth 1 -type f -mtime +$((KEEP_DAYS - 1)) -delete
+ExecStart=/usr/bin/find $FILES_DIR -mindepth 1 -type d -empty -delete
+EOF
+cat > /etc/systemd/system/octo-files-clean.timer <<'EOF'
+[Unit]
+Description=Daily cleanup of octo download dir
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # ---------------------------------------------------------------- 5. systemd
 log "配置 systemd 服务..."
 cat > /etc/systemd/system/octo.service <<EOF
@@ -255,6 +302,7 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
 systemctl enable octo >/dev/null 2>&1
+systemctl enable --now octo-files-clean.timer >/dev/null 2>&1
 systemctl restart octo
 
 # ---------------------------------------------------------------- 6. 登录服务
@@ -484,6 +532,18 @@ server {
     }
     location @octo_login { return 302 /login?next=\$request_uri; }
 
+    # 文件下载目录（需登录）
+    location /files/ {
+        auth_request /__octo_auth;
+        error_page 401 = @octo_login;
+        alias $FILES_DIR/;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+        charset utf-8;
+        add_header X-Content-Type-Options nosniff;
+    }
+
     location / {
         auth_request /__octo_auth;
         error_page 401 = @octo_login;
@@ -513,6 +573,31 @@ nginx -t -q
 systemctl enable nginx >/dev/null 2>&1
 systemctl restart nginx
 
+# 告诉 agent：交付文件放到下载目录并给出链接（写在全局记忆的必须遵守里）
+FILES_URL="https://$OCTO_HOST:$OCTO_PORT/files"
+MEM_DIR=$(cd "$OCTO_HOME" && sudo -u "$OCTO_USER" -H /usr/local/bin/octo memory path 2>/dev/null | grep -o '/[^ ]*memories/[^ ]*' | head -n1)
+if [ -n "$MEM_DIR" ]; then
+  install -d -m 755 -o "$OCTO_USER" -g "$OCTO_USER" "$MEM_DIR"
+  MEM_FILE="$MEM_DIR/MEMORY.md"
+  touch "$MEM_FILE"
+  python3 - "$MEM_FILE" "$FILES_DIR" "$FILES_URL" "$KEEP_DAYS" <<'PYEOF'
+import sys,re
+f,d,u,k=sys.argv[1:]
+s=open(f,encoding='utf-8').read()
+s=re.sub(r'\n?<!-- octo-deploy:files -->.*?<!-- /octo-deploy:files -->\n?','\n',s,flags=re.S).strip('\n')
+block=f'''<!-- octo-deploy:files -->
+## 必须遵守
+
+- 用户在 Web 界面里无法直接接收文件，send_file 只用于 IM。凡是要交给用户的文件（压缩包、文档、图片、安装包等），复制到 `{d}/`（可建子目录），然后直接在回复里给出下载链接 `{u}/<文件名>`（文件名含空格或中文时做 URL 编码）。不要只报服务器路径，也不要做下载页。该目录的文件 {k} 天后自动清理。
+- 运行用户有免密 sudo：需要 root 的命令（apt-get 装软件、改系统配置等）直接加 sudo，不要因为权限不足而放弃。不要改动或重启 xray/v2ray、sshd 和 nginx 的 octo 配置。
+<!-- /octo-deploy:files -->'''
+open(f,'w',encoding='utf-8').write((s+'\n\n' if s else '')+block+'\n')
+PYEOF
+  chown "$OCTO_USER:$OCTO_USER" "$MEM_FILE"
+else
+  warn "没找到 octo 全局记忆目录，跳过写入文件下载规则"
+fi
+
 # ---------------------------------------------------------------- 8. 自检
 sleep 3
 systemctl is-active --quiet octo  || die "octo 没有启动，查看：journalctl -u octo -n 50"
@@ -532,6 +617,7 @@ cat <<EOF
  octo 部署完成
  访问地址：https://$OCTO_HOST:$OCTO_PORT
  用安装时设置的管理员账号密码登录；退出登录：/logout
+ 文件下载：$FILES_URL/（登录后可用，$KEEP_DAYS 天自动清理）
 
  自签名证书，浏览器首次会提示"不安全"，选择继续访问即可。
  打开后在设置里选模型、填 API key。云厂商安全组记得放行 TCP $OCTO_PORT。
