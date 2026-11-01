@@ -573,6 +573,29 @@ nginx -t -q
 systemctl enable nginx >/dev/null 2>&1
 systemctl restart nginx
 
+# 图片搜索小工具（必应图片，输出直链），给 agent 找图用
+cat > /usr/local/bin/img-search <<'IMGEOF'
+#!/usr/bin/env python3
+"""img-search 关键词 [张数]  —— 用必应图片搜索，输出图片直链（每行：标题<TAB>图片URL<TAB>来源页）"""
+import sys,re,html,json,urllib.parse,urllib.request
+if len(sys.argv)<2: print(__doc__); sys.exit(1)
+q=sys.argv[1]; n=int(sys.argv[2]) if len(sys.argv)>2 else 8
+UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+zh=bool(re.search(r'[\u4e00-\u9fff]',q))
+url="https://www.bing.com/images/async?"+urllib.parse.urlencode({"q":q,"first":0,"count":max(n*2,20),"mmasync":1,**({"setlang":"zh-hans","mkt":"zh-CN"} if zh else {})})
+req=urllib.request.Request(url,headers={"User-Agent":UA,"Accept-Language":"zh-CN,zh;q=0.9,en;q=0.8"})
+s=urllib.request.urlopen(req,timeout=20).read().decode('utf-8','replace')
+out=0
+for m in re.finditer(r'\bm="([^"]+)"',s):
+    try: d=json.loads(html.unescape(m.group(1)))
+    except Exception: continue
+    if not d.get("murl"): continue
+    print(f'{d.get("t","").strip()}\t{d["murl"]}\t{d.get("purl","")}'); out+=1
+    if out>=n: break
+if not out: print("没有结果，换个关键词（可试英文）"); sys.exit(2)
+IMGEOF
+chmod 755 /usr/local/bin/img-search
+
 # 告诉 agent：交付文件放到下载目录并给出链接（写在全局记忆的必须遵守里）
 FILES_URL="https://$OCTO_HOST:$OCTO_PORT/files"
 MEM_DIR=$(cd "$OCTO_HOME" && sudo -u "$OCTO_USER" -H /usr/local/bin/octo memory path 2>/dev/null | grep -o '/[^ ]*memories/[^ ]*' | head -n1)
@@ -589,6 +612,7 @@ block=f'''<!-- octo-deploy:files -->
 ## 必须遵守
 
 - 用户在 Web 界面里无法直接接收文件，send_file 只用于 IM。凡是要交给用户的文件（压缩包、文档、图片、安装包等），复制到 `{d}/`（可建子目录），然后直接在回复里给出下载链接 `{u}/<文件名>`（文件名含空格或中文时做 URL 编码）。不要只报服务器路径，也不要做下载页。该目录的文件 {k} 天后自动清理。
+- 找图：先用 `img-search "关键词" 8` 拿图片直链（必应图片，英文关键词结果更好），不要去扒网页源码。要在聊天里给用户看图：把挑好的图下载到 `{d}/` 下，然后在回复里直接写 Markdown 图片 `![说明]({u}/<文件名>)`，聊天界面会直接显示；不要只给压缩包或下载链接。
 - 运行用户有免密 sudo：需要 root 的命令（apt-get 装软件、改系统配置等）直接加 sudo，不要因为权限不足而放弃。不要改动或重启 xray/v2ray、sshd 和 nginx 的 octo 配置。
 <!-- /octo-deploy:files -->'''
 open(f,'w',encoding='utf-8').write((s+'\n\n' if s else '')+block+'\n')
