@@ -599,7 +599,7 @@ if "-d" in o:
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 req=urllib.request.Request("https://www.bing.com/images/async?"+urllib.parse.urlencode(p),headers={"User-Agent":UA,"Accept-Language":"zh-CN,zh;q=0.9,ja;q=0.8,en;q=0.7"})
 s=urllib.request.urlopen(req,timeout=20).read().decode('utf-8','replace')
-BAD=re.compile(r'tiktok\.com|mercari|ebay\.|aliexpress|amazon\.|auctions\.yahoo|rakuten\.co\.jp/item|shopee|taobao|alamy|shutterstock|gettyimages|dreamstime|123rf',re.I)
+BAD=re.compile(r'tiktok\.com|alamy|shutterstock|gettyimages|dreamstime|123rf',re.I)  # 只滤视频页和带水印的图库
 out=0; seen=set()
 for m in re.finditer(r'\bm="([^"]+)"',s):
     try: d=json.loads(html.unescape(m.group(1)))
