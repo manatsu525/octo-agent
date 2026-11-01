@@ -563,6 +563,10 @@ server {
         proxy_cache off;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
+        # 聊天里的图片按屏幕宽度缩放，点击看原图（octo 前端默认按原尺寸显示）
+        proxy_set_header Accept-Encoding "";
+        sub_filter_once on;
+        sub_filter '</head>' '<style>.rich-answer img,.trail-text img,.result-body img,.notice-line img{max-width:100%!important;height:auto!important;max-height:70vh;object-fit:contain;border-radius:8px;cursor:zoom-in}</style><script>document.addEventListener("click",function(e){var t=e.target;if(t&&t.tagName==="IMG"&&t.closest&&t.closest(".rich-answer,.trail-text,.result-body,.notice-line")){window.open(t.src,"_blank")}},true)</script></head>';
     }
 }
 EOF
@@ -612,7 +616,7 @@ block=f'''<!-- octo-deploy:files -->
 ## 必须遵守
 
 - 用户在 Web 界面里无法直接接收文件，send_file 只用于 IM。凡是要交给用户的文件（压缩包、文档、图片、安装包等），复制到 `{d}/`（可建子目录），然后直接在回复里给出下载链接 `{u}/<文件名>`（文件名含空格或中文时做 URL 编码）。不要只报服务器路径，也不要做下载页。该目录的文件 {k} 天后自动清理。
-- 找图：先用 `img-search "关键词" 8` 拿图片直链（必应图片，英文关键词结果更好），不要去扒网页源码。要在聊天里给用户看图：把挑好的图下载到 `{d}/` 下，然后在回复里直接写 Markdown 图片 `![说明]({u}/<文件名>)`，聊天界面会直接显示；不要只给压缩包或下载链接。
+- 找图：先用 `img-search "关键词" 8` 拿图片直链（必应图片，英文关键词结果更好），不要去扒网页源码。要在聊天里给用户看图：把挑好的图下载到 `{d}/` 下，先用 `convert 原图 -resize '1280x1280>' -quality 82 新图.jpg` 压到 1280px 以内（手机流量友好），然后在回复里直接写 Markdown 图片 `![说明]({u}/<文件名>)`，聊天界面会直接显示；不要只给压缩包或下载链接。
 - 运行用户有免密 sudo：需要 root 的命令（apt-get 装软件、改系统配置等）直接加 sudo，不要因为权限不足而放弃。不要改动或重启 xray/v2ray、sshd 和 nginx 的 octo 配置。
 <!-- /octo-deploy:files -->'''
 open(f,'w',encoding='utf-8').write((s+'\n\n' if s else '')+block+'\n')
