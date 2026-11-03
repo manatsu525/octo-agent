@@ -567,6 +567,8 @@ server {
         proxy_set_header Accept-Encoding "";
         sub_filter_once on;
         sub_filter '</head>' '<style>.rich-answer img,.trail-text img,.result-body img,.notice-line img{max-width:100%!important;height:auto!important;max-height:70vh;object-fit:contain;border-radius:8px;cursor:zoom-in}</style><script>document.addEventListener("click",function(e){var t=e.target;if(t&&t.tagName==="IMG"&&t.closest&&t.closest(".rich-answer,.trail-text,.result-body,.notice-line")){window.open(t.src,"_blank")}},true)</script></head>';
+        # 关掉页面缩放（也阻止 iOS 点输入框时自动放大）
+        sub_filter 'initial-scale=1.0, viewport-fit=cover' 'initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
     }
 }
 EOF
