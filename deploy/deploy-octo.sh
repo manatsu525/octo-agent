@@ -628,6 +628,7 @@ block=f'''<!-- octo-deploy:files -->
 
 - 用户在 Web 界面里无法直接接收文件，send_file 只用于 IM。凡是要交给用户的文件（压缩包、文档、图片、安装包等），复制到 `{d}/`（可建子目录），然后直接在回复里给出下载链接 `{u}/<文件名>`（文件名含空格或中文时做 URL 编码）。不要只报服务器路径，也不要做下载页。该目录的文件 {k} 天后自动清理。
 - 找图：用 `img-search` 拿图片直链（必应图片），不要去扒网页源码。要“近期/最新”的图必须加 `-d 30`（或 7），关键词不要自己加年份（你的知识有截止日期，会搜出旧图）；外国人物/事物可用当地语言原名并配对应市场（-m），其余情况不用加；优先新闻、官网来源。在聊天里给用户看图：把挑好的图下载到 `{d}/` 下，先用 `convert 原图 -resize '1280x1280>' -quality 82 新图.jpg` 压到 1280px 以内，然后在回复里直接写 Markdown 图片 `![说明]({u}/<文件名>)`，聊天界面会直接显示；不要只给压缩包或下载链接。
+- 网页搜索/抓取按这个顺序选工具（没配置的就跳过）：先用 keenable MCP（`search_web_pages` / `fetch_page_content`）；它限流、报错或结果明显不理想（无关、过旧、太少）时，换 parallel MCP（`web_search` / `web_fetch`）；两者都不行再用内置的 `web_search` / `web_fetch`（抓 DDG / 必应）。提示词或技能里写的“web_search / web_fetch”泛指网页搜索/抓取，不特指同名的 MCP 工具。
 - 运行用户有免密 sudo：需要 root 的命令（apt-get 装软件、改系统配置等）直接加 sudo，不要因为权限不足而放弃。不要改动或重启 xray/v2ray、sshd 和 nginx 的 octo 配置。
 <!-- /octo-deploy:files -->'''
 open(f,'w',encoding='utf-8').write((s+'\n\n' if s else '')+block+'\n')
