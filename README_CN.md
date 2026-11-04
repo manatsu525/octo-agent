@@ -22,6 +22,28 @@ coding agent 能力对标 Claude Code；作为个人助手，它比 OpenClaw 更
 
 </div>
 
+> [!IMPORTANT]
+> ## 🚀 本 fork：VPS 一键部署 / 卸载
+>
+> 适用 Debian 11/12/13（x86_64 / arm64），不用 Docker，1G 内存可用（自动补 swap）。用 **root** 运行：
+>
+> ```bash
+> # 安装 / 升级 / 改登录密码（重复运行安全，保留数据和密钥）
+> curl -fsSLO https://raw.githubusercontent.com/manatsu525/octo-agent/main/deploy/deploy-octo.sh
+> bash deploy-octo.sh
+>
+> # 卸载（会询问是否连聊天数据一起删）
+> bash deploy-octo.sh uninstall
+> ```
+>
+> 装好后访问 `https://服务器IP:8557`（自签名证书，浏览器提示不安全时选择继续），用安装时设置的管理员账号密码登录。
+>
+> 脚本会：安装 octo（本 fork 的 Release，校验 SHA-256）→ 独立用户 + systemd 自启 → nginx 自签名 HTTPS + 登录页 → 预置 Keenable / Parallel 搜索 MCP → `/files/` 文件下载目录（默认保留 7 天）。
+>
+> 常用环境变量：`OCTO_PORT=8557` 对外端口 · `OCTO_VERSION` 指定版本 · `OCTO_SUDO=0` 不给 agent sudo · `SWAP_TARGET_MB=0` 不动 swap · `OCTO_ADMIN_USER` / `OCTO_ADMIN_PASS` 免交互设账号。例如：`OCTO_PORT=9443 bash deploy-octo.sh`
+>
+> 完整说明见 [deploy/deploy-octo.sh](deploy/deploy-octo.sh) 文件开头的注释。以下为上游原 README。
+
 ## 为什么用 octo
 
 octo 不是又一个需要"养"的 agent 框架。OpenClaw、Hermes 这类项目往往需要你调环境、写规则、配技能才能让 agent 跑顺；octo 的定位更接近 Codex / WorkBuddy：**下载即用、用户友好**，同时把模型选择权、数据所有权和运行环境牢牢留在你手里。
