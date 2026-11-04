@@ -22,6 +22,24 @@ If you find octo useful, give it a ⭐ on GitHub!
 
 </div>
 
+> [!IMPORTANT]
+> ## 🚀 This fork: one-command VPS deploy / uninstall（一键部署 / 卸载）
+>
+> Debian 11/12/13 (x86_64 / arm64), no Docker, works on 1 GB RAM (adds swap). Run as **root**:
+>
+> ```bash
+> # Install / upgrade / change login password（安装 / 升级 / 改密码）
+> curl -fsSLO https://raw.githubusercontent.com/manatsu525/octo-agent/main/deploy/deploy-octo.sh
+> bash deploy-octo.sh
+>
+> # Uninstall（卸载，会询问是否删除聊天数据）
+> bash deploy-octo.sh uninstall
+> ```
+>
+> Then open `https://<server-ip>:8557` (self-signed cert) and sign in with the admin account set during install.
+>
+> Options: `OCTO_PORT=8557` · `OCTO_VERSION` · `OCTO_SUDO=0` · `SWAP_TARGET_MB=0` · `OCTO_ADMIN_USER` / `OCTO_ADMIN_PASS`, e.g. `OCTO_PORT=9443 bash deploy-octo.sh`. Full docs: header of [deploy/deploy-octo.sh](deploy/deploy-octo.sh) · 中文说明见 [README_CN.md](README_CN.md)。The upstream README follows.
+
 ## Why octo
 
 octo isn't another agent framework you have to "raise." Projects like OpenClaw or Hermes often need environment tuning, rule writing, and skill configuration before the agent runs smoothly. octo sits closer to Codex or WorkBuddy: **download and use, user-friendly**, while keeping model choice, data ownership, and the runtime firmly in your hands.
