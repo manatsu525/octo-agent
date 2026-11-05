@@ -48,7 +48,7 @@ warn() { printf '\033[1;33m[octo-deploy]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[octo-deploy]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "请用 root 运行"
-[ -f /etc/debian_version ] || die "只支持 Debian 系统"
+[ -f /etc/debian_version ] || die "只支持 Debian/Ubuntu 系统"
 command -v systemctl >/dev/null || die "需要 systemd"
 
 # ---------------------------------------------------------------- 卸载
@@ -92,10 +92,12 @@ if [ "${1:-}" = "uninstall" ]; then
   elif nginx -t -q 2>/dev/null; then
     systemctl reload nginx || true
   fi
+  UFW_ACTIVE=0
   if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then
+    UFW_ACTIVE=1
     ufw delete allow "$OCTO_PORT/tcp" >/dev/null 2>&1 || true
   fi
-  if command -v iptables >/dev/null; then
+  if [ "$UFW_ACTIVE" = 0 ] && command -v iptables >/dev/null; then
     iptables -D INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null || true
     if command -v ip6tables >/dev/null; then
       ip6tables -D INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null || true
@@ -679,12 +681,14 @@ code_nologin=$(curl -sk -o /dev/null -w '%{http_code}' "https://127.0.0.1:$OCTO_
 code_direct=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 203.0.113.1' "http://$INTERNAL_ADDR/api/sessions")
 [ "$code_nologin" = "302" ] || warn "警告：未登录访问返回 $code_nologin（应为 302 跳登录页）"
 [ "$code_direct" = "401" ]  || warn "警告：octo 访问密钥校验异常（$code_direct）"
+UFW_ACTIVE=0
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then
+  UFW_ACTIVE=1
   ufw allow "$OCTO_PORT/tcp" >/dev/null && log "ufw 已放行 $OCTO_PORT"
 fi
 # Oracle Cloud 等镜像的 iptables 默认只放行 22，其余在 INPUT 末尾 REJECT。
-# 插到最前面，避免被后面的 REJECT 规则挡住；并尽量持久化。
-if command -v iptables >/dev/null; then
+# 插到最前面，避免被后面的 REJECT 规则挡住；ufw 没启用时才直接管 iptables，避免两套规则打架。
+if [ "$UFW_ACTIVE" = 0 ] && command -v iptables >/dev/null; then
   if ! iptables -C INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null; then
     iptables -I INPUT 1 -p tcp --dport "$OCTO_PORT" -j ACCEPT && log "iptables 已放行 $OCTO_PORT"
   fi
