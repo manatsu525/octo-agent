@@ -307,17 +307,9 @@ EOF
 
 # ---------------------------------------------------------------- 5. systemd
 log "配置 systemd 服务..."
-# 按机器内存给 octo 设上限：1G 小鸡防拖垮系统，大内存机器别卡得太死
-MEM_TOTAL_MB=$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo)
-if [ "$MEM_TOTAL_MB" -le 1536 ]; then
-  OCTO_MEM_HIGH=550M; OCTO_MEM_MAX=750M
-elif [ "$MEM_TOTAL_MB" -le 4096 ]; then
-  OCTO_MEM_HIGH=1024M; OCTO_MEM_MAX=1536M
-elif [ "$MEM_TOTAL_MB" -le 8192 ]; then
-  OCTO_MEM_HIGH=2048M; OCTO_MEM_MAX=3072M
-else
-  OCTO_MEM_HIGH=4096M; OCTO_MEM_MAX=6144M
-fi
+# 内存上限固定：不管机器多大，最多用到 MemoryHigh=1G / MemoryMax=1.5G
+OCTO_MEM_HIGH=1024M
+OCTO_MEM_MAX=1536M
 cat > /etc/systemd/system/octo.service <<EOF
 [Unit]
 Description=octo-agent (octo serve)
