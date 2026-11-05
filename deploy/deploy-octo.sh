@@ -14,6 +14,7 @@
 #    9. 给 octo 用户免密 sudo（agent 能装软件、改系统；不想要设 OCTO_SUDO=0）
 #   10. 文件下载目录 ~octo/Octo/files，登录后经 https://IP:端口/files/ 下载，
 #       每天自动清理超过 OCTO_FILES_KEEP_DAYS 天的文件；并告诉 agent 把交付文件放这里给链接
+#   11. 自动放行 ufw/iptables 端口（Oracle Cloud 等镜像默认只放行 22，其余会被 REJECT）
 #
 #  用法（root）：
 #    bash deploy-octo.sh              安装 / 升级 / 改登录密码
@@ -91,8 +92,15 @@ if [ "${1:-}" = "uninstall" ]; then
   elif nginx -t -q 2>/dev/null; then
     systemctl reload nginx || true
   fi
-  if command -v ufw >/dev/null && ufw status | grep -q active; then
+  if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then
     ufw delete allow "$OCTO_PORT/tcp" >/dev/null 2>&1 || true
+  fi
+  if command -v iptables >/dev/null; then
+    iptables -D INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null || true
+    if command -v ip6tables >/dev/null; then
+      ip6tables -D INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null || true
+    fi
+    command -v netfilter-persistent >/dev/null && netfilter-persistent save >/dev/null 2>&1 || true
   fi
 
   if [ -f /swapfile.octo ]; then
@@ -671,8 +679,25 @@ code_nologin=$(curl -sk -o /dev/null -w '%{http_code}' "https://127.0.0.1:$OCTO_
 code_direct=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 203.0.113.1' "http://$INTERNAL_ADDR/api/sessions")
 [ "$code_nologin" = "302" ] || warn "警告：未登录访问返回 $code_nologin（应为 302 跳登录页）"
 [ "$code_direct" = "401" ]  || warn "警告：octo 访问密钥校验异常（$code_direct）"
-if command -v ufw >/dev/null && ufw status | grep -q active; then
+if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then
   ufw allow "$OCTO_PORT/tcp" >/dev/null && log "ufw 已放行 $OCTO_PORT"
+fi
+# Oracle Cloud 等镜像的 iptables 默认只放行 22，其余在 INPUT 末尾 REJECT。
+# 插到最前面，避免被后面的 REJECT 规则挡住；并尽量持久化。
+if command -v iptables >/dev/null; then
+  if ! iptables -C INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null; then
+    iptables -I INPUT 1 -p tcp --dport "$OCTO_PORT" -j ACCEPT && log "iptables 已放行 $OCTO_PORT"
+  fi
+  if command -v ip6tables >/dev/null; then
+    ip6tables -C INPUT -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null \
+      || ip6tables -I INPUT 1 -p tcp --dport "$OCTO_PORT" -j ACCEPT 2>/dev/null || true
+  fi
+  if command -v netfilter-persistent >/dev/null; then
+    netfilter-persistent save >/dev/null 2>&1 || true
+  elif [ -d /etc/iptables ] && [ -w /etc/iptables ]; then
+    iptables-save > /etc/iptables/rules.v4
+    command -v ip6tables-save >/dev/null && ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+  fi
 fi
 
 cat <<EOF
@@ -684,7 +709,9 @@ cat <<EOF
  文件下载：$FILES_URL/（登录后可用，$KEEP_DAYS 天自动清理）
 
  自签名证书，浏览器首次会提示"不安全"，选择继续访问即可。
- 打开后在设置里选模型、填 API key。云厂商安全组记得放行 TCP $OCTO_PORT。
+ 打开后在设置里选模型、填 API key。
+ 本机 ufw/iptables 已自动放行 TCP $OCTO_PORT；如果外网仍打不开，再去云厂商控制台的
+ 安全列表 / 网络安全组（Security List / NSG）放行 TCP $OCTO_PORT（Oracle Cloud 必须检查）。
 
  常用命令：
    systemctl status octo        查看状态
