@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  octo-agent 一键部署脚本（Debian 11/12/13，x86_64 / arm64，不使用 Docker）
+#  octo-agent 一键部署脚本（Debian 11/12/13 / Ubuntu 20.04+，x86_64 / arm64，不使用 Docker）
 #
 #  做的事：
-#    1. 安装依赖：curl tar ca-certificates openssl git ripgrep nginx(-light)
+#    1. 安装依赖：curl tar ca-certificates openssl git ripgrep nginx（带 sub_filter 模块）
 #    2. 内存小于 2G 时把 swap 补到约 2G
 #    3. 从镜像仓库 manatsu525/octo-agent 安装 octo（校验 SHA-256），失败回退官方脚本
 #    4. 创建独立用户 octo 运行服务（默认带免密 sudo，见第 9 条）
@@ -56,14 +56,20 @@ if [ "${1:-}" = "uninstall" ]; then
     local a; [ -r /dev/tty ] && read -r -p "$1" a </dev/tty 2>/dev/null || a=""
     case "${a:-$2}" in [Yy]*) return 0 ;; *) return 1 ;; esac
   }
-  if [ "${OCTO_UNINSTALL_YES:-}" != 1 ]; then
-    ask "确认卸载 octo（服务、登录页、nginx 配置、证书、swap 文件）？[y/N] " N || die "已取消"
-  fi
   OCTO_HOME=$(getent passwd "$OCTO_USER" | cut -d: -f6 || true)
   PURGE="${OCTO_PURGE:-}"
-  if [ -z "$PURGE" ] && [ -n "$OCTO_HOME" ]; then
-    ask "同时删除聊天记录、配置和工作目录（$OCTO_HOME）？删了无法恢复 [y/N] " N && PURGE=1 || PURGE=0
+  if [ "${OCTO_UNINSTALL_YES:-}" != 1 ]; then
+    ask "确认卸载 octo？会删除服务、nginx octo 配置、证书、登录凭据和 /usr/local/bin/octo*（系统软件包保留）[y/N] " N || die "已取消"
   fi
+  if [ -z "$PURGE" ] && [ -n "$OCTO_HOME" ]; then
+    ask "是否同时删除聊天记录、配置和工作目录 $OCTO_HOME？选 N 只卸载程序、保留数据 [y/N] " N && PURGE=1 || PURGE=0
+  fi
+  if [ "$PURGE" = 1 ]; then
+    log "卸载计划：删除程序和全部数据（用户 $OCTO_USER / $OCTO_HOME）"
+  else
+    log "卸载计划：只删程序和配置，保留用户 $OCTO_USER 和数据目录 ${OCTO_HOME:-（不存在）}"
+  fi
+  log "nginx、git、ripgrep 等系统软件包不会卸载"
   log "停止服务..."
   for s in octo octo-auth; do
     systemctl disable --now "$s" >/dev/null 2>&1 || true
@@ -106,7 +112,12 @@ if [ "${1:-}" = "uninstall" ]; then
   elif [ -n "$OCTO_HOME" ]; then
     log "已保留用户 $OCTO_USER 和数据目录 $OCTO_HOME（重新安装会接着用）"
   fi
-  log "卸载完成。依赖软件包（nginx、git 等）未删除。"
+  if [ "$PURGE" = 1 ]; then
+    log "卸载完成：程序、配置、证书、登录凭据和用户数据均已删除。"
+  else
+    log "卸载完成：程序、配置、证书和登录凭据已删除；用户和聊天数据已保留。"
+  fi
+  log "nginx、git、ripgrep 等系统软件包仍然保留，需要时请自行 apt-get remove。"
   exit 0
 fi
 
@@ -146,9 +157,18 @@ log "安装依赖..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq curl tar ca-certificates openssl git ripgrep python3 sudo zip unzip >/dev/null
-if ! dpkg -s nginx-light >/dev/null 2>&1 && ! dpkg -s nginx >/dev/null 2>&1; then
-  apt-get install -y -qq nginx-light >/dev/null 2>&1 || apt-get install -y -qq nginx >/dev/null
+# octo.conf 用到 sub_filter（ngx_http_sub_module）。
+# Debian 12 的 nginx-light 底层二进制带这个模块，Ubuntu 20.04 的 nginx-light 不带，
+# 所以优先装 nginx 元包（Ubuntu 会选到带模块的 nginx-full/nginx-core），并显式检查模块。
+if ! command -v nginx >/dev/null 2>&1 || ! nginx -V 2>&1 | grep -q -- '--with-http_sub_module'; then
+  log "安装带 sub_filter 的 nginx..."
+  apt-get install -y -qq nginx >/dev/null 2>&1 \
+    || apt-get install -y -qq nginx-full >/dev/null 2>&1 \
+    || apt-get install -y -qq nginx-extras >/dev/null 2>&1 \
+    || die "安装 nginx 失败"
 fi
+nginx -V 2>&1 | grep -q -- '--with-http_sub_module' \
+  || die "当前 nginx 缺少 ngx_http_sub_module（sub_filter），请先安装 nginx-full 或 nginx-extras 再重跑"
 # 不要 Debian 默认站点占 80 端口
 rm -f /etc/nginx/sites-enabled/default
 
@@ -575,7 +595,9 @@ EOF
 chmod 600 /etc/nginx/conf.d/octo.conf
 # 小内存：1 个 worker 足够
 sed -i 's/^worker_processes .*/worker_processes 1;/' /etc/nginx/nginx.conf
-nginx -t -q
+if ! nginx -t -q; then
+  die "nginx 配置校验失败（见上方输出）。如果提示 unknown directive \"sub_filter\"，说明 nginx 缺少 ngx_http_sub_module，请安装 nginx-full 后重跑本脚本。"
+fi
 systemctl enable nginx >/dev/null 2>&1
 systemctl restart nginx
 
