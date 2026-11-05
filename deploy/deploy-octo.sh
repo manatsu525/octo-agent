@@ -307,6 +307,17 @@ EOF
 
 # ---------------------------------------------------------------- 5. systemd
 log "配置 systemd 服务..."
+# 按机器内存给 octo 设上限：1G 小鸡防拖垮系统，大内存机器别卡得太死
+MEM_TOTAL_MB=$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo)
+if [ "$MEM_TOTAL_MB" -le 1536 ]; then
+  OCTO_MEM_HIGH=550M; OCTO_MEM_MAX=750M
+elif [ "$MEM_TOTAL_MB" -le 4096 ]; then
+  OCTO_MEM_HIGH=1024M; OCTO_MEM_MAX=1536M
+elif [ "$MEM_TOTAL_MB" -le 8192 ]; then
+  OCTO_MEM_HIGH=2048M; OCTO_MEM_MAX=3072M
+else
+  OCTO_MEM_HIGH=4096M; OCTO_MEM_MAX=6144M
+fi
 cat > /etc/systemd/system/octo.service <<EOF
 [Unit]
 Description=octo-agent (octo serve)
@@ -322,9 +333,9 @@ EnvironmentFile=$ENV_FILE
 ExecStart=/usr/local/bin/octo serve -addr $INTERNAL_ADDR --no-supervisor
 Restart=always
 RestartSec=3
-# 1G 小鸡保护：octo 吃太多时先回收，再超就杀掉重启，不拖垮 v2ray/ssh
-MemoryHigh=550M
-MemoryMax=750M
+# 吃太多时先回收，再超就杀掉重启，不拖垮 v2ray/ssh
+MemoryHigh=$OCTO_MEM_HIGH
+MemoryMax=$OCTO_MEM_MAX
 OOMScoreAdjust=300
 
 [Install]
