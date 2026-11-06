@@ -2254,17 +2254,36 @@ func (s *Server) getProvider() string {
 // onboarding mode (no API key yet) the sender stays nil, but s.model is still
 // refreshed from config so a session created before ensureSender runs uses the
 // right model.
+//
+// When this call is the one that leaves onboarding mode (the first keyed model
+// saved from the Web UI), it also finishes the tools-on startup work New()
+// skipped for a nil sender — goal.enabled and the sub-agent tools — exactly as
+// ensureSender does. Without it, ensureSender would later see a non-nil sender
+// and return early, leaving /goal reporting "Goals are disabled" and sub-agent
+// tools unadvertised until the server restarts.
 func (s *Server) reloadDefaultSender() error {
 	s.senderMu.Lock()
-	defer s.senderMu.Unlock()
 	sender, model, provName, err := resolveProviderAndModel(s.cfg.Provider, s.cfg.Model)
 	if err != nil {
+		s.senderMu.Unlock()
 		return err
 	}
 	s.model = model
+	leftOnboarding := s.sender == nil && sender != nil && s.cfg.Tools
 	if sender != nil {
 		s.sender = sender
 		s.provider = provName
+	}
+	if leftOnboarding {
+		// Same ordering as ensureSender: stage goal.enabled under senderMu so
+		// no reader sees the sender without it, then enable the sub-agent
+		// tools after the unlock (enableSubAgentTools takes senderMu itself).
+		s.syncGoalsEnabled()
+	}
+	s.senderMu.Unlock()
+
+	if leftOnboarding {
+		s.enableSubAgentTools()
 	}
 	return nil
 }

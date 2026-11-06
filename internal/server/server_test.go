@@ -1151,6 +1151,68 @@ func TestEnsureSender_GoalsEnabledVisibleAtomicallyWithSender(t *testing.T) {
 	}
 }
 
+// TestReloadDefaultSender_LeavingOnboardingEnablesGoals covers the Web UI
+// setup path: a server started with no model (onboarding mode) gets its first
+// keyed model through a config handler, which calls reloadDefaultSender rather
+// than ensureSender. That call must enable goals and the sub-agent tools the
+// way a normal start does; otherwise ensureSender later sees a non-nil sender,
+// returns early, and /goal answers "Goals are disabled" until a restart.
+func TestReloadDefaultSender_LeavingOnboardingEnablesGoals(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
+	t.Setenv("OPENAI_API_KEY", "")
+
+	srv, err := New(Config{Addr: "127.0.0.1:0", Tools: true, NoChannel: true, NoMemory: true})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if srv.getSender() != nil {
+		t.Fatal("expected nil sender on keyless start (onboarding mode)")
+	}
+	if srv.goalsEnabled.Load() {
+		t.Fatal("goals enabled before any model was configured")
+	}
+	prevMgr := tools.DefaultSubAgentManager()
+	tools.SetDefaultSubAgentManager(nil)
+	t.Cleanup(func() { tools.SetDefaultSubAgentManager(prevMgr) })
+
+	cfgPath := filepath.Join(tmp, ".octo", "config.yml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfgYAML := "models:\n" +
+		"  - name: t\n" +
+		"    provider: openai\n" +
+		"    model: gpt-test\n" +
+		"    base_url: http://127.0.0.1:1/v1\n" +
+		"    api_key: sk-test\n" +
+		"default_model: t\n"
+	if err := os.WriteFile(cfgPath, []byte(cfgYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- srv.reloadDefaultSender() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("reloadDefaultSender: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("reloadDefaultSender deadlocked (senderMu held across enableSubAgentTools)")
+	}
+	if srv.getSender() == nil {
+		t.Fatal("sender still nil after reloadDefaultSender")
+	}
+	if !srv.goalsEnabled.Load() {
+		t.Fatal("goals still disabled after the first model was configured")
+	}
+	if tools.DefaultSubAgentManager() == nil {
+		t.Fatal("sub-agent tools not enabled after the first model was configured")
+	}
+}
+
 // ─── New API tests ──────────────────────────────────────────────────────────
 
 func TestHandleOnboardStatus(t *testing.T) {
