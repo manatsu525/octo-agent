@@ -47,3 +47,27 @@ The diagram uses mermaid's `dark` theme when `<html data-theme="dark">`, `defaul
 ## Dependency
 
 `mermaid` is loaded with a dynamic `import()` on the first diagram, so it is emitted entirely as lazy chunks; a session that never shows a diagram never loads or parses it. `go:embed all:webdist` still ships those chunks in the binary.
+
+## Click-to-enlarge viewer (fork m4)
+
+Rendered diagrams in desktop chat and the dedicated mobile chat are keyboard-
+focusable buttons. Click/tap (or Enter/Space) opens a native modal dialog with
+fit-to-screen framing, +/-/fit/close controls, pointer-based drag and pinch,
+wheel zoom, and double-tap/double-click fit/zoom toggle. Blank-stage taps close;
+drags and multi-touch releases do not. Escape closes and focus is restored.
+The stage owns touch gestures (`touch-action: none`) without changing page zoom.
+
+The viewer **moves** the existing DOMPurify-sanitized SVG and restores it on
+close; it never parses model output or duplicates SVG IDs/scoped styles. Inline
+size constraints are restored too. Theme changes close the viewer before the
+normal theme redraw, keeping labels readable. Streamed replacements and action
+destruction are safe. UI strings ship in English and Chinese. No dependencies
+were added. Script-free sandboxed Markdown artifact frames retain static diagrams
+and do not advertise an inactive enlarge button.
+
+Regression coverage: `mermaid-viewer.test.ts` exercises node/style restoration,
+keyboard/lifecycle, zoom anchoring/limits, controls/wheel/Escape, theme replacement,
+and pointer drag/pinch/backdrop distinctions. `tests/test_install_linux.py`
+checks the fork installer offline with ARM64/AMD64 uname aliases, matching release
+archives and SHA256 validation. The installer defaults to this fork; upstream
+mirrors are used only with `OCTO_REPO=open-octo/octo-agent`.

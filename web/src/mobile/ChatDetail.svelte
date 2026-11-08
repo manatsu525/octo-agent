@@ -13,6 +13,7 @@
   import type { Attachment } from '../lib/composerDrafts'
   import { ws } from '../lib/ws'
   import { wireMobileSession, loadMobileHistory, sendMobile, mobileSteers } from './chatWiring'
+  import { setupMermaid } from '../lib/mermaid'
   import { renderMarkdown } from '../lib/markdown'
   import { t } from '../lib/i18n'
   import ArtifactsSheet from './ArtifactsSheet.svelte'
@@ -345,8 +346,8 @@
       <!-- The reply half of a silent turn, drawn into its panel above. -->
     {:else if msg.type === 'assistant'}
       <div class="bubble agent" class:wide={msg.content?.includes(FENCE_OPEN)}>
-        {#if msg.thinking}<div class="thoughts">{@html renderMarkdown(msg.thinking)}</div>{/if}
-        <div class="body">
+        {#if msg.thinking}<div class="thoughts" use:setupMermaid>{@html renderMarkdown(msg.thinking)}</div>{/if}
+        <div class="body" use:setupMermaid>
           {#each splitOctoUiFences(msg.content) as seg, segIdx (segIdx)}
             {#if seg.kind === 'markdown'}
               {@html renderMarkdown(seg.text)}
@@ -370,7 +371,7 @@
         </div>
       </div>
     {:else if msg.type === 'thinking'}
-      <div class="thoughts standalone">{@html renderMarkdown(msg.thinking)}</div>
+      <div class="thoughts standalone" use:setupMermaid>{@html renderMarkdown(msg.thinking)}</div>
     {:else if msg.type === 'tool_group'}
       <div class="tools"><ToolGroup tools={msg.tools} streaming={msg.streaming} /></div>
     {:else if msg.type === 'notice'}

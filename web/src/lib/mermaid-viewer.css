@@ -1,0 +1,14 @@
+.mermaid-block[data-mermaid-rendered] pre { display: none; }
+.mermaid-diagram { padding: 12px 14px; overflow-x: auto; }
+.mermaid-diagram svg { max-width: 100%; height: auto; }
+.mermaid-diagram[role="button"] { cursor: zoom-in; }
+.mermaid-diagram[role="button"]:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: -2px; }
+.mermaid-viewer { position: fixed; inset: 0; margin: 0; padding: 0; border: 0; width: 100%; height: 100%; max-width: none; max-height: none; overflow: hidden; background: #fff; color: #222; overscroll-behavior: contain; }
+[data-theme="dark"] .mermaid-viewer { background: #171717; color: #eee; }
+.mermaid-viewer::backdrop { background: rgba(0,0,0,.85); }
+.mermaid-viewer-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
+.mermaid-viewer-stage:active { cursor: grabbing; }
+.mermaid-viewer-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.mermaid-viewer-toolbar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; pointer-events: none; }
+.mermaid-viewer-toolbar button { pointer-events: auto; min-width: 44px; min-height: 44px; border: 1px solid #888; border-radius: 8px; background: #333; color: #fff; font: inherit; cursor: pointer; padding: 8px 14px; touch-action: manipulation; }
+.mermaid-viewer-toolbar span { width: 100%; text-align: center; font-size: 12px; text-shadow: 0 0 4px #888; }
