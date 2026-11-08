@@ -18,6 +18,9 @@
 // frontend can pull in, and a session that never shows a diagram should never
 // parse it.
 import DOMPurify from 'dompurify'
+import { get } from 'svelte/store'
+import { t } from './i18n'
+import { setupMermaidViewer } from './mermaid-viewer'
 
 export const MERMAID_BLOCK_CLASS = 'mermaid-block'
 const RENDERED_ATTR = 'data-mermaid-rendered'
@@ -119,6 +122,10 @@ function attach(block: HTMLElement, svg: string) {
   if (block.hasAttribute(RENDERED_ATTR)) return
   const diagram = document.createElement('div')
   diagram.className = 'mermaid-diagram'
+  diagram.tabIndex = 0
+  diagram.setAttribute('role', 'button')
+  diagram.setAttribute('aria-label', get(t)('chat.diagram_enlarge'))
+  diagram.title = get(t)('chat.diagram_enlarge')
   diagram.innerHTML = svg
   block.appendChild(diagram)
   block.setAttribute(RENDERED_ATTR, '')
@@ -148,6 +155,7 @@ function hydrate(root: HTMLElement) {
  * on every change. */
 export function setupMermaid(el: HTMLElement): { destroy: () => void } {
   hydrate(el)
+  const destroyViewer = setupMermaidViewer(el)
   const obs = new MutationObserver(() => hydrate(el))
   obs.observe(el, { childList: true, subtree: true })
   // A finished message never re-renders, so a theme switch has to redraw its
@@ -163,6 +171,7 @@ export function setupMermaid(el: HTMLElement): { destroy: () => void } {
   themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
   return {
     destroy: () => {
+      destroyViewer()
       obs.disconnect()
       themeObs.disconnect()
     },
@@ -183,7 +192,11 @@ export async function renderMermaidBlocks(html: string): Promise<string> {
     const code = block.querySelector('pre code')?.textContent ?? ''
     if (!code.trim()) return
     const svg = await svgFor(code, theme)
-    if (svg) attach(block, svg)
+    if (svg) {
+      attach(block, svg)
+      const diagram = block.querySelector('.mermaid-diagram')!
+      for (const attr of ['role', 'tabindex', 'aria-label', 'title']) diagram.removeAttribute(attr)
+    }
   }))
   return tpl.innerHTML
 }

@@ -14,6 +14,7 @@
 # Overrides (env):
 #   OCTO_INSTALL_DIR=/path   install here instead of the default
 #   OCTO_VERSION=1.2.3       install this version instead of the latest
+#   OCTO_REPO=owner/repo     override the release repository
 #
 # Windows users: run the PowerShell one-liner instead —
 #   irm https://octo-agent.dev/install.ps1 | iex
@@ -22,14 +23,18 @@
 
 set -eu
 
-REPO="open-octo/octo-agent"
+REPO="${OCTO_REPO:-manatsu525/octo-agent}"
 
 # Download bases, tried in order: GitHub first, then mirrors exposing the
 # same /releases/... path layout, for networks where github.com is blocked
 # (notably mainland China). Keep in sync with internal/upgrade's
 # MirrorBaseURLs and install.ps1. Checksum verification below applies to
 # whichever base served the bytes.
-BASES="https://github.com/$REPO https://dl.octo-agent.dev https://ghproxy.net/https://github.com/$REPO https://gh-proxy.com/https://github.com/$REPO https://gh.ddlc.top/https://github.com/$REPO"
+BASES="https://github.com/$REPO"
+# Public upstream mirrors do not carry this fork's releases.
+if [ "$REPO" = "open-octo/octo-agent" ]; then
+  BASES="$BASES https://dl.octo-agent.dev https://ghproxy.net/https://github.com/$REPO https://gh-proxy.com/https://github.com/$REPO https://gh.ddlc.top/https://github.com/$REPO"
+fi
 
 err() { printf 'octo install: %s\n' "$1" >&2; exit 1; }
 
