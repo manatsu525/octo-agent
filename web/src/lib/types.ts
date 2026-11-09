@@ -31,6 +31,9 @@ export interface Session {
   reasoning_effort: 'low' | 'medium' | 'high' | string
   show_reasoning?: boolean
   context_usage: number
+  // Cumulative token spend across every turn of the session (absent for
+  // sessions that predate usage tracking).
+  usage?: SessionUsage
   // Set when this session has an outstanding ask_user_question awaiting an
   // answer — seeded by the initial GET /api/sessions, kept live via the global
   // session_activity broadcast (App.svelte), independent of whether this
@@ -501,4 +504,14 @@ export interface ChatMessage {
   createdAt: number
   tools: any[]
   todos: any[]
+}
+
+// Cumulative per-session token totals (server: agent.UsageTotals). input is
+// the uncached prompt remainder; cache_read/cache_write are the cached buckets.
+export interface SessionUsage {
+  input: number
+  output: number
+  cache_read: number
+  cache_write: number
+  turns: number
 }

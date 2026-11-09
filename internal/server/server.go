@@ -4082,6 +4082,15 @@ func (s *Server) runChannelTurns(ctx context.Context, sess *channel.Session, ad 
 
 	_, runErr := channel.RunAgent(ctx, sess, toolDefs, executor, ctrl, content)
 	persist()
+	{
+		// sess.Agent is persistent, so record this chain's delta (not the
+		// cumulative counters) into the session's usage totals.
+		inA, outA := sess.Agent.SessionTokens()
+		crA, cwA := sess.Agent.SessionCacheTokens()
+		if uerr := sess.RecordUsage(inA-inBefore, outA-outBefore, crA-crBefore, cwA-cwBefore); uerr != nil {
+			slog.Warn("channel persist usage", "channel", ev.Platform, "err", uerr)
+		}
+	}
 
 	// Steer messages that arrived after the turn's final inbox drain chain
 	// into follow-up turns (web runAgentTurnLoop parity), and an active goal

@@ -3,7 +3,7 @@
   import { onDestroy, onMount, untrack, tick } from 'svelte'
   import {
     running, activeSessionId, chatStreaming, sessions, sessionGroups,
-    chatContextUsage, chatWorkingDir, chatPermMode, chatReasoningEffort, chatShowReasoning, showToast, chatGoal, chatModel,
+    chatContextUsage, chatContextTokens, chatWorkingDir, chatPermMode, chatReasoningEffort, chatShowReasoning, showToast, chatGoal, chatModel,
     globalPermissionMode, globalReasoningEffort, nativeShell, localAccess, activeAgent, pendingModel, view, openSettingsAt,
     pendingAgent, pendingWorkingDir, pendingGroupId, pendingReasoningEffort, pendingPermissionMode, pendingShowReasoning,
     normalizeDir, dirLeaf, projectsClaimingDir,
@@ -660,6 +660,24 @@
   // (landing page only) pendingShowReasoning > default true.
   let showReasoning = $derived($chatShowReasoning[sid] ?? currentSession?.show_reasoning ?? (sid ? true : ($pendingShowReasoning ?? true)))
   let ctxUsage = $derived(Number($chatContextUsage[sid] ?? currentSession?.context_usage ?? 0))
+  // Session-level token usage popover (click the context chip).
+  let ctxTokens = $derived(Number($chatContextTokens[sid] ?? 0))
+  let usage = $derived(currentSession?.usage ?? null)
+  let usageStats = $derived.by(() => {
+    const u = usage
+    if (!u) return null
+    const input = u.input || 0, out = u.output || 0, cr = u.cache_read || 0, cw = u.cache_write || 0
+    const prompt = input + cr + cw
+    return {
+      total: prompt + out, input, out, cr, cw, turns: u.turns || 0,
+      rate: prompt > 0 ? (cr * 100) / prompt : null,
+    }
+  })
+  function fmtTok(n: number): string {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+    return String(n)
+  }
   // Session goal chip: usage while active, status label otherwise. null/absent
   // hides the chip entirely.
   let goal = $derived($chatGoal[sid] ?? null)
@@ -691,6 +709,7 @@
   let projectModalGroup = $state<SessionGroup | null>(null)
   let agentMenu = $state(false)
   let permMenu = $state(false)
+  let ctxMenu = $state(false)
 
   // The model menu groups rows under their endpoint, like the design mock.
   // The heading shows the endpoint's display name when it has one — the id is
@@ -915,7 +934,7 @@
     }
   }
 
-  function closeMenus() { modelMenu = false; reasonMenu = false; agentMenu = false; permMenu = false; projMenu = false; claimChoices = null }
+  function closeMenus() { ctxMenu = false; modelMenu = false; reasonMenu = false; agentMenu = false; permMenu = false; projMenu = false; claimChoices = null }
 
   // The landing page's project list: claimants-only while an ambiguous folder
   // pick is being resolved, otherwise every project, filtered by the query.
@@ -1476,11 +1495,33 @@
           </span>
         {/if}
         <span style="margin-left:auto;"></span>
-        <span class="meta-chip static" title={$t('chat.context')}>
-          <iconify-icon icon="lucide:clock" width="13"></iconify-icon>
-          <span>{$t('chat.context')}</span>
-          <span class="mono ctx-pct">{ctxUsage}%</span>
-        </span>
+        <div class="picker">
+          <button class="meta-chip" title={$t('chat.usage_title')} aria-haspopup="dialog" aria-expanded={ctxMenu}
+            onclick={(e) => { e.stopPropagation(); const open = ctxMenu; closeMenus(); ctxMenu = !open }}>
+            <iconify-icon icon="lucide:clock" width="13"></iconify-icon>
+            <span>{$t('chat.context')}</span>
+            <span class="mono ctx-pct">{ctxUsage}%</span>
+          </button>
+          {#if ctxMenu}
+            <div class="menu ctx-menu" role="dialog" aria-label={$t('chat.usage_title')} onclick={(e) => e.stopPropagation()}>
+              <div class="ctx-head">{$t('chat.usage_title')}</div>
+              <div class="ctx-row"><span>{$t('chat.usage_context')}</span><span class="mono">{ctxUsage}%{ctxTokens > 0 ? ` · ${fmtTok(ctxTokens)}` : ''}</span></div>
+              {#if usageStats}
+                <div class="ctx-row strong"><span>{$t('chat.usage_total')}</span><span class="mono">{fmtTok(usageStats.total)}</span></div>
+                <div class="ctx-row"><span>{$t('chat.usage_input')}</span><span class="mono">{fmtTok(usageStats.input)}</span></div>
+                <div class="ctx-row"><span>{$t('chat.usage_cache_read')}</span><span class="mono">{fmtTok(usageStats.cr)}</span></div>
+                {#if usageStats.cw > 0}
+                  <div class="ctx-row"><span>{$t('chat.usage_cache_write')}</span><span class="mono">{fmtTok(usageStats.cw)}</span></div>
+                {/if}
+                <div class="ctx-row"><span>{$t('chat.usage_output')}</span><span class="mono">{fmtTok(usageStats.out)}</span></div>
+                <div class="ctx-row strong"><span>{$t('chat.usage_cache_rate')}</span><span class="mono">{usageStats.rate === null ? '—' : usageStats.rate.toFixed(1) + '%'}</span></div>
+                <div class="ctx-row dim"><span>{$t('chat.usage_turns')}</span><span class="mono">{usageStats.turns}</span></div>
+              {:else}
+                <div class="ctx-empty">{$t('chat.usage_none')}</div>
+              {/if}
+            </div>
+          {/if}
+        </div>
         <div class="picker">
           <button class="meta-chip" title={$t('chat.perm_toggle_hint')} onclick={(e) => { e.stopPropagation(); const open = permMenu; closeMenus(); permMenu = !open }}>
             <span class="perm-dot" data-mode={permMode}></span>
@@ -1678,6 +1719,13 @@ textarea {
 .meta-chip.static { cursor: default; }
 .meta-chip.static:hover { color: var(--text-secondary); background: transparent; }
 .ctx-pct { color: var(--text); font-weight: 600; }
+.ctx-menu { left: auto; right: 0; min-width: 210px; padding: 8px 10px; cursor: default; }
+.ctx-head { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.ctx-row { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; line-height: 1.9; color: var(--text-secondary); }
+.ctx-row .mono { color: var(--text); }
+.ctx-row.strong span { color: var(--text); font-weight: 600; }
+.ctx-row.dim { color: var(--text-tertiary); }
+.ctx-empty { font-size: 12px; color: var(--text-tertiary); line-height: 1.6; max-width: 220px; white-space: normal; }
 .send-btn {
   width: 38px; height: 30px; flex: 0 0 auto; margin-bottom: 1px;
   border: none; background: var(--blue-6); border-radius: 9px;

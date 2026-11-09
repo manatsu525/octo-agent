@@ -1864,6 +1864,9 @@ func (s *Server) doAgentTurn(sess *agent.Session, content string, blocks []agent
 	if err := a.PersistContextUsage(sess); err != nil {
 		slog.Warn("session: persist context tokens", "session_id", sess.ID, "err", err)
 	}
+	// Cumulative token totals for the session-level usage popover. Recorded
+	// even on error/interrupt: the tokens were spent either way.
+	recordTurnUsage(sess, a)
 
 	// Adopt a title generated while the turn ran. The generation goroutine
 	// only broadcast + stored it (it must not write the file concurrently with
@@ -1933,6 +1936,7 @@ func (s *Server) doAgentTurn(sess *agent.Session, content string, blocks []agent
 		"status":           "idle",
 		"context_usage":    ctxPct,
 		"context_tokens":   used,
+		"usage":            sessionUsagePayload(sess),
 		"working_dir":      s.sessionCwd(sess),
 		"permission_mode":  pm,
 		"reasoning_effort": re,

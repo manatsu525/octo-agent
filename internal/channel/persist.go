@@ -176,6 +176,18 @@ func (s *Session) Persist() error {
 	return nil
 }
 
+// RecordUsage folds one turn's token deltas into the backing store's
+// cumulative usage totals, under storeMu like Persist. A nil (unbound or
+// tombstoned) store is a no-op.
+func (s *Session) RecordUsage(input, output, cacheRead, cacheWrite int) error {
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
+	if s.Store == nil {
+		return nil
+	}
+	return s.Store.AddUsage(input, output, cacheRead, cacheWrite)
+}
+
 // AdoptGeneratedTitle records an async-generated session title, replacing an
 // auto-name placeholder ("*Octo Agent", "Session N", or empty — the shared
 // agent.IsAutoNamePlaceholder predicate, so adoption can never disagree with

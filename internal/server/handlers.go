@@ -43,27 +43,28 @@ type turnRequest struct {
 // sessionItem is the shape the Web UI expects for each session in listings
 // and after creation. It is a superset of the raw agent.Session fields.
 type sessionItem struct {
-	ID                  string    `json:"id"`
-	Name                string    `json:"name"`
-	Title               string    `json:"title"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	Model               string    `json:"model"`
-	ModelID             string    `json:"model_id,omitempty"`
-	Status              string    `json:"status"`
-	Source              string    `json:"source"`
-	AgentProfile        string    `json:"agent_profile"`
-	Pinned              bool      `json:"pinned"`
-	TotalTasks          int       `json:"total_tasks"`
-	TurnCount           int       `json:"turn_count"`
-	WorkingDir          string    `json:"working_dir,omitempty"`
-	PermissionMode      string    `json:"permission_mode,omitempty"`
-	ReasoningEffort     string    `json:"reasoning_effort,omitempty"`
-	ShowReasoning       *bool     `json:"show_reasoning,omitempty"`
-	ContextUsage        int       `json:"context_usage,omitempty"`
-	PendingQuestion     bool      `json:"pending_question,omitempty"`
-	PendingConfirmation bool      `json:"pending_confirmation,omitempty"`
-	BranchedFrom        string    `json:"branched_from,omitempty"`
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	Title               string             `json:"title"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+	Model               string             `json:"model"`
+	ModelID             string             `json:"model_id,omitempty"`
+	Status              string             `json:"status"`
+	Source              string             `json:"source"`
+	AgentProfile        string             `json:"agent_profile"`
+	Pinned              bool               `json:"pinned"`
+	TotalTasks          int                `json:"total_tasks"`
+	TurnCount           int                `json:"turn_count"`
+	WorkingDir          string             `json:"working_dir,omitempty"`
+	PermissionMode      string             `json:"permission_mode,omitempty"`
+	ReasoningEffort     string             `json:"reasoning_effort,omitempty"`
+	ShowReasoning       *bool              `json:"show_reasoning,omitempty"`
+	ContextUsage        int                `json:"context_usage,omitempty"`
+	Usage               *agent.UsageTotals `json:"usage,omitempty"`
+	PendingQuestion     bool               `json:"pending_question,omitempty"`
+	PendingConfirmation bool               `json:"pending_confirmation,omitempty"`
+	BranchedFrom        string             `json:"branched_from,omitempty"`
 }
 
 type sessionDetail struct {
@@ -146,6 +147,7 @@ func (srv *Server) toSessionItem(s *agent.Session, source, agentProfile string) 
 		ReasoningEffort:     re,
 		ShowReasoning:       sr,
 		ContextUsage:        ctxUsage,
+		Usage:               sessionUsagePayload(s),
 		PendingQuestion:     srv.hasPendingQuestion(s.ID),
 		PendingConfirmation: srv.hasPendingConfirmation(s.ID),
 		BranchedFrom:        s.BranchedFrom,

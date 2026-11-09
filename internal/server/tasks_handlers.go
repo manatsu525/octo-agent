@@ -444,6 +444,7 @@ func (s *Server) RunTask(ctx context.Context, task scheduler.Task) (sessionID st
 	if perr := a.PersistContextUsage(sess); perr != nil {
 		slog.Warn("scheduled task: persist context tokens", "task", task.Name, "err", perr)
 	}
+	recordTurnUsage(sess, a)
 
 	s.liveStateMu.Lock()
 	delete(s.liveStates, sessionID)

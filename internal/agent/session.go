@@ -105,6 +105,12 @@ type Session struct {
 	// that never completed a turn with a real token count. Updated once per turn
 	// via SetLastContextTokens.
 	LastContextTokens int `json:"last_context_tokens,omitempty"`
+	// Usage is the cumulative token spend of every turn in this session
+	// (input / output / cache read / cache write, plus turn count). Persisted
+	// as a single "usage" record per turn (last one wins) and folded into the
+	// meta header on rewrite, so it never grows the transcript beyond one
+	// line per turn. nil for sessions predating this field.
+	Usage *UsageTotals `json:"usage,omitempty"`
 	// ContentUpdatedAt is when the transcript itself last changed (a message
 	// appended, truncated, or rewritten) — deliberately distinct from the
 	// session file's OS mtime, which also moves on every binding/lease
@@ -594,32 +600,33 @@ func (s *Session) ChunkDir() (string, error) {
 // type as authoritative; rewriteAll folds them back into the meta header when
 // compacting.
 type sessionRecord struct {
-	Type                  string    `json:"type"` // "meta" | "message" | "title" | "model_config" | "agent_id" | "working_dir" | "permission_mode" | "context_tokens" | "content_updated_at" | "composed_system" | "lease" | "goal"
-	ID                    string    `json:"id,omitempty"`
-	CreatedAt             time.Time `json:"created_at,omitempty"`
-	Model                 string    `json:"model,omitempty"`
-	System                string    `json:"system,omitempty"`
-	ComposedSystem        string    `json:"composed_system,omitempty"`
-	ComposedLeanSystem    string    `json:"composed_lean_system,omitempty"`
-	ComposedForModel      string    `json:"composed_for_model,omitempty"`
-	ComposedForCWD        string    `json:"composed_for_cwd,omitempty"`
-	ComposedForSourceDirs string    `json:"composed_for_source_dirs,omitempty"`
-	Title                 string    `json:"title,omitempty"`
-	Source                string    `json:"source,omitempty"`
-	ModelConfig           string    `json:"model_config,omitempty"`
-	AgentID               string    `json:"agent_id,omitempty"`
-	WorkingDir            string    `json:"working_dir,omitempty"`
-	PermissionMode        string    `json:"permission_mode,omitempty"`
-	BoundEntry            string    `json:"bound_entry,omitempty"`
-	BoundAt               time.Time `json:"bound_at,omitempty"`
-	LeaseEntry            string    `json:"lease_entry,omitempty"`
-	LeaseExpires          time.Time `json:"lease_expires,omitempty"`
-	HookStarted           bool      `json:"hook_started,omitempty"`
-	BranchedFrom          string    `json:"branched_from,omitempty"`
-	LastContextTokens     int       `json:"last_context_tokens,omitempty"`
-	ContentUpdatedAt      time.Time `json:"content_updated_at,omitempty"`
-	Message               *Message  `json:"message,omitempty"`
-	Goal                  *Goal     `json:"goal,omitempty"`
+	Type                  string       `json:"type"` // "meta" | "message" | "title" | "model_config" | "agent_id" | "working_dir" | "permission_mode" | "context_tokens" | "content_updated_at" | "composed_system" | "lease" | "goal"
+	ID                    string       `json:"id,omitempty"`
+	CreatedAt             time.Time    `json:"created_at,omitempty"`
+	Model                 string       `json:"model,omitempty"`
+	System                string       `json:"system,omitempty"`
+	ComposedSystem        string       `json:"composed_system,omitempty"`
+	ComposedLeanSystem    string       `json:"composed_lean_system,omitempty"`
+	ComposedForModel      string       `json:"composed_for_model,omitempty"`
+	ComposedForCWD        string       `json:"composed_for_cwd,omitempty"`
+	ComposedForSourceDirs string       `json:"composed_for_source_dirs,omitempty"`
+	Title                 string       `json:"title,omitempty"`
+	Source                string       `json:"source,omitempty"`
+	ModelConfig           string       `json:"model_config,omitempty"`
+	AgentID               string       `json:"agent_id,omitempty"`
+	WorkingDir            string       `json:"working_dir,omitempty"`
+	PermissionMode        string       `json:"permission_mode,omitempty"`
+	BoundEntry            string       `json:"bound_entry,omitempty"`
+	BoundAt               time.Time    `json:"bound_at,omitempty"`
+	LeaseEntry            string       `json:"lease_entry,omitempty"`
+	LeaseExpires          time.Time    `json:"lease_expires,omitempty"`
+	HookStarted           bool         `json:"hook_started,omitempty"`
+	BranchedFrom          string       `json:"branched_from,omitempty"`
+	LastContextTokens     int          `json:"last_context_tokens,omitempty"`
+	Usage                 *UsageTotals `json:"usage,omitempty"`
+	ContentUpdatedAt      time.Time    `json:"content_updated_at,omitempty"`
+	Message               *Message     `json:"message,omitempty"`
+	Goal                  *Goal        `json:"goal,omitempty"`
 }
 
 func (s *Session) metaRecord() sessionRecord {
@@ -633,8 +640,13 @@ func (s *Session) metaRecord() sessionRecord {
 		g := *s.Goal
 		goal = &g
 	}
+	var usage *UsageTotals
+	if s.Usage != nil {
+		u := *s.Usage
+		usage = &u
+	}
 	s.mu.Unlock()
-	return sessionRecord{Type: "meta", ID: s.ID, CreatedAt: s.CreatedAt, Model: s.Model, System: s.System, ComposedSystem: s.ComposedSystem, ComposedLeanSystem: s.ComposedLeanSystem, ComposedForModel: s.ComposedForModel, ComposedForCWD: s.ComposedForCWD, ComposedForSourceDirs: s.ComposedForSourceDirs, Title: s.Title, Source: s.Source, ModelConfig: s.ModelConfig, AgentID: s.AgentID, WorkingDir: s.WorkingDir, PermissionMode: s.PermissionMode, LastContextTokens: s.LastContextTokens, ContentUpdatedAt: s.ContentUpdatedAt, BoundEntry: s.BoundEntry, BoundAt: s.BoundAt, HookStarted: s.HookStarted, BranchedFrom: s.BranchedFrom, Goal: goal}
+	return sessionRecord{Type: "meta", Usage: usage, ID: s.ID, CreatedAt: s.CreatedAt, Model: s.Model, System: s.System, ComposedSystem: s.ComposedSystem, ComposedLeanSystem: s.ComposedLeanSystem, ComposedForModel: s.ComposedForModel, ComposedForCWD: s.ComposedForCWD, ComposedForSourceDirs: s.ComposedForSourceDirs, Title: s.Title, Source: s.Source, ModelConfig: s.ModelConfig, AgentID: s.AgentID, WorkingDir: s.WorkingDir, PermissionMode: s.PermissionMode, LastContextTokens: s.LastContextTokens, ContentUpdatedAt: s.ContentUpdatedAt, BoundEntry: s.BoundEntry, BoundAt: s.BoundAt, HookStarted: s.HookStarted, BranchedFrom: s.BranchedFrom, Goal: goal}
 }
 
 // MarkHookStarted records that SessionStart has fired for this session, so a
@@ -1156,6 +1168,75 @@ func (s *Session) SetLastContextTokens(n int) error {
 	return nil
 }
 
+// UsageTotals is a session's cumulative token spend across all turns.
+// Input is the uncached prompt remainder; CacheRead / CacheWrite are the
+// cached buckets, so the full prompt side is Input+CacheRead+CacheWrite
+// (the same non-overlapping buckets Agent.SessionTokens/SessionCacheTokens use).
+type UsageTotals struct {
+	Input      int64 `json:"input"`
+	Output     int64 `json:"output"`
+	CacheRead  int64 `json:"cache_read"`
+	CacheWrite int64 `json:"cache_write"`
+	Turns      int   `json:"turns"`
+}
+
+// UsageSnapshot returns a copy of the session's cumulative usage (zero value
+// when none has been recorded).
+func (s *Session) UsageSnapshot() UsageTotals {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Usage == nil {
+		return UsageTotals{}
+	}
+	return *s.Usage
+}
+
+// AddUsage folds one turn's token counts into the session's cumulative
+// totals and persists them as a single "usage" record (append, or rewrite
+// for a meta-only/forced-rewrite file — same mechanics as
+// SetLastContextTokens). A turn that spent nothing is a no-op.
+func (s *Session) AddUsage(input, output, cacheRead, cacheWrite int) error {
+	if input <= 0 && output <= 0 && cacheRead <= 0 && cacheWrite <= 0 {
+		return nil
+	}
+	s.mu.Lock()
+	if s.Usage == nil {
+		s.Usage = &UsageTotals{}
+	}
+	s.Usage.Input += int64(max(input, 0))
+	s.Usage.Output += int64(max(output, 0))
+	s.Usage.CacheRead += int64(max(cacheRead, 0))
+	s.Usage.CacheWrite += int64(max(cacheWrite, 0))
+	s.Usage.Turns++
+	snap := *s.Usage
+	s.mu.Unlock()
+	if s.persisted == 0 {
+		if path, perr := s.SavePath(); perr == nil {
+			if _, statErr := os.Stat(path); statErr == nil {
+				return s.rewriteAll()
+			}
+		}
+		return nil
+	}
+	if s.forceRewrite {
+		return s.rewriteAll()
+	}
+	path, err := s.SavePath()
+	if err != nil {
+		return err
+	}
+	// No O_CREATE — see SetTitle: never materialise an orphan transcript.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return fmt.Errorf("session: open %s: %w", path, err)
+	}
+	defer f.Close()
+	if err := json.NewEncoder(f).Encode(sessionRecord{Type: "usage", Usage: &snap}); err != nil {
+		return fmt.Errorf("session: append usage: %w", err)
+	}
+	return nil
+}
+
 // DisplayTitle returns the label shown for the session in list views: the
 // generated Title when present, otherwise a snippet of the first user message
 // (so pre-title sessions and not-yet-titled ones are still recognisable), and
@@ -1463,6 +1544,7 @@ func LoadSession(id string) (*Session, error) {
 			s.WorkingDir = rec.WorkingDir
 			s.PermissionMode = rec.PermissionMode
 			s.LastContextTokens = rec.LastContextTokens // a rewritten file carries it in its meta header
+			s.Usage = rec.Usage                         // a rewritten file carries it in its meta header
 			s.ContentUpdatedAt = rec.ContentUpdatedAt   // a rewritten file carries it in its meta header
 			s.BoundEntry = rec.BoundEntry
 			s.BoundAt = rec.BoundAt
@@ -1485,6 +1567,8 @@ func LoadSession(id string) (*Session, error) {
 			s.PermissionMode = rec.PermissionMode // last one wins, like title
 		case "context_tokens":
 			s.LastContextTokens = rec.LastContextTokens // last one wins, like title
+		case "usage":
+			s.Usage = rec.Usage // last one wins: each record carries the full totals
 		case "content_updated_at":
 			s.ContentUpdatedAt = rec.ContentUpdatedAt // last one wins, like title — appendDelta's own record
 		case "composed_system":

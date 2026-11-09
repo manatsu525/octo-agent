@@ -880,3 +880,56 @@ func TestSessionTruncateTo(t *testing.T) {
 		t.Fatalf("unexpected content after truncate: %+v", reloaded.Messages)
 	}
 }
+
+// TestAddUsage_AccumulatesAppendsAndRoundTrips: each turn appends one "usage"
+// record carrying the full running totals (last wins on load), a zero turn is
+// a no-op, and a full rewrite folds the totals into the meta header so the
+// per-turn records don't accumulate across rewrites.
+func TestAddUsage_AccumulatesAppendsAndRoundTrips(t *testing.T) {
+	setTempHome(t)
+	s := NewSession("m", "")
+	s.Messages = []Message{NewUserMessage("hi"), NewAssistantMessage("hello")}
+	if err := s.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if err := s.AddUsage(100, 20, 900, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddUsage(50, 10, 1000, 5); err != nil {
+		t.Fatal(err)
+	}
+	path, _ := s.SavePath()
+	data, _ := os.ReadFile(path)
+	if n := strings.Count(string(data), `"type":"usage"`); n != 2 {
+		t.Fatalf("want 2 usage records, got %d:\n%s", n, data)
+	}
+	before := len(data)
+	if err := s.AddUsage(0, 0, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := os.ReadFile(path); len(after) != before {
+		t.Errorf("zero AddUsage must not append")
+	}
+	want := UsageTotals{Input: 150, Output: 30, CacheRead: 1900, CacheWrite: 5, Turns: 2}
+	got, err := LoadSession(s.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Usage == nil || *got.Usage != want {
+		t.Fatalf("reloaded usage = %+v, want %+v", got.Usage, want)
+	}
+	if err := got.rewriteAll(); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	if strings.Contains(string(data), `"type":"usage"`) {
+		t.Errorf("rewrite should fold usage into meta, file:\n%s", data)
+	}
+	again, err := LoadSession(s.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Usage == nil || *again.Usage != want {
+		t.Fatalf("after rewrite usage = %+v, want %+v", again.Usage, want)
+	}
+}
