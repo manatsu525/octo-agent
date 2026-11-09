@@ -484,11 +484,14 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
       if (live.length) {
         chatMessages.update(m => ({ ...m, [sid]: appendLiveAfterHistory(m[sid] ?? [], live) }))
       }
-      // Pin to bottom after the DOM update so the user lands at the latest message.
+      // Pin to bottom after the DOM update so the user lands at the latest message —
+      // unless a reconnect reload is holding the reader's place (see
+      // holdScrollForReload), in which case put them back where they were.
       queueMicrotask(() => {
-        if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight
+        if (scrollHold) releaseScrollHold(true)
+        else if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight
       })
-    }).catch(() => {/* silently ignore history load errors */})
+    }).catch(() => { releaseScrollHold(false) /* otherwise silently ignore history load errors */ })
   }
 
   // Clear transient runtime state for a session so switching back from another
@@ -624,6 +627,9 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
 
     cleanups.push(ws.on('history_reload', (ev) => {
       if ((ev as any).session_id !== sid) return
+      // A reconnect reload only backfills what the socket missed; a reader
+      // scrolled up into history must not be yanked to the bottom by it.
+      if ((ev as any).reconnect) holdScrollForReload()
       clearMsgs(sid)
       resetArtifacts(sid)
       loadHistory(sid, () => cancelled)
@@ -1393,6 +1399,39 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
   let innerEl = $state<HTMLElement | null>(null)
   let stick = true
 
+  // Reconnect reloads (ws.ts synthesizes history_reload with reconnect: true)
+  // clear and re-render the whole transcript. Clearing collapses the content,
+  // which clamps scrollTop and — at the then-trivial bottom — lets the
+  // ResizeObserver re-arm stick, so the re-render used to land the reader at
+  // the latest message mid-read. When the reader isn't following the stream,
+  // freeze the content's height (scrollTop never clamps, no scroll events
+  // fire) and pin nothing until the reloaded history is back, then restore
+  // the exact offset. Followers (stick) keep the normal pin-to-bottom.
+  let scrollHold: { top: number } | null = null
+  let scrollHoldTimer: ReturnType<typeof setTimeout> | null = null
+  function holdScrollForReload() {
+    if (stick || !messagesEl || !innerEl) return
+    if (!scrollHold) {
+      scrollHold = { top: messagesEl.scrollTop }
+      innerEl.style.minHeight = `${innerEl.offsetHeight}px`
+    }
+    // Never leave the content frozen if the reload stalls.
+    if (scrollHoldTimer) clearTimeout(scrollHoldTimer)
+    scrollHoldTimer = setTimeout(() => releaseScrollHold(false), 15000)
+  }
+  function releaseScrollHold(restore: boolean) {
+    if (scrollHoldTimer) { clearTimeout(scrollHoldTimer); scrollHoldTimer = null }
+    const hold = scrollHold
+    if (!hold) return
+    // Let the reloaded transcript lay out before dropping the frozen height,
+    // so the restored offset is measured against the real content.
+    requestAnimationFrame(() => {
+      if (innerEl) innerEl.style.minHeight = ''
+      if (restore && messagesEl) messagesEl.scrollTop = hold.top
+      scrollHold = null
+    })
+  }
+
   $effect(() => {
     const scroller = messagesEl
     const content = innerEl
@@ -1518,6 +1557,8 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
       // proof the user is following the stream, not reading history — re-arm
       // stick even if stray wheel noise latched it off, so auto-scroll can
       // never die while the view is pinned to the latest message.
+      // A reconnect reload is holding the reader's place; don't re-arm or pin.
+      if (scrollHold) return
       const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 1
       if (atBottom && !interacting) stick = true
       if (stick && !interacting) scroller.scrollTop = scroller.scrollHeight

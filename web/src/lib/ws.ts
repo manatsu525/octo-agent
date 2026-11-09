@@ -67,7 +67,9 @@ export class WsManager {
       // already handles for /clear and /compact to force a re-fetch.
       if (isReconnect) {
         for (const sessionId of this.subscriptions) {
-          this.dispatch({ type: "history_reload", session_id: sessionId });
+          // reconnect: true lets the view keep the reader's scroll position —
+          // this reload only fills the gap, it doesn't rewrite what's on screen.
+          this.dispatch({ type: "history_reload", session_id: sessionId, reconnect: true });
         }
         // The sidebar is a hole too: session_activity events are
         // fire-and-forget, so a turn_ended broadcast during the disconnect

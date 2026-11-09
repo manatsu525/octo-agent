@@ -79,7 +79,7 @@ describe('WsManager reconnect resync', () => {
     lastSocket().drop()
     mgr.connect()
     lastSocket().open()
-    expect(historyReloads).toEqual([{ type: 'history_reload', session_id: 's1' }])
+    expect(historyReloads).toEqual([{ type: 'history_reload', session_id: 's1', reconnect: true }])
     expect(listReloads).toEqual([{ type: 'session_list_reload' }])
   })
 })
