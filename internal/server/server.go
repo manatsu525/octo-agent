@@ -1377,6 +1377,7 @@ func (s *Server) buildAgent(sess *agent.Session) *agent.Agent {
 	cwd, envCtx := s.sessionCwdEnv(sess)
 	a.CWD = cwd
 	a.MaxTokens = s.cfg.MaxTokens
+	a.MaxTokensEscalate = serveMaxTokensEscalate()
 	if s.goalsEnabled.Load() {
 		// The session is the goal accountant on EVERY turn path built from
 		// it (WS, REST, scheduled) — a goal created over one transport
@@ -2692,6 +2693,7 @@ func (s *Server) buildChannelAgent(profile *agentprofile.Profile) *agent.Agent {
 	}
 	a := agent.New(defaultSender, model)
 	a.MaxTokens = s.cfg.MaxTokens
+	a.MaxTokensEscalate = serveMaxTokensEscalate()
 	if cfg, err := config.Load(); err == nil {
 		entry := cfg.DefaultEntry()
 		if profile.Model != "" {
