@@ -692,3 +692,43 @@ func TestSendStream_MidStreamErrorSurfaces(t *testing.T) {
 		t.Errorf("error should carry the upstream message, got %v", err)
 	}
 }
+
+// A transition chunk carrying both the last reasoning fragment and the first
+// content fragment, plus reasoning that trickles in after the reply started,
+// must not surface live thinking after visible text (the Web UI would split
+// the reply around a stray thinking box). All reasoning is still kept.
+func TestSendStream_OpenAI_LateReasoningNotSurfacedAfterText(t *testing.T) {
+	const stream = `data: {"choices":[{"delta":{"reasoning_content":"think"}}]}` + "\n\n" +
+		`data: {"choices":[{"delta":{"reasoning_content":".","content":"ans"}}]}` + "\n\n" +
+		`data: {"choices":[{"delta":{"reasoning_content":"!"}}]}` + "\n\n" +
+		`data: {"choices":[{"delta":{"content":"wer"},"finish_reason":"stop"}]}` + "\n\n" +
+		"data: [DONE]\n\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, stream)
+	}))
+	defer srv.Close()
+	c, err := New("test-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.BaseURL = srv.URL
+	var events []string
+	resp, err := c.SendStream(context.Background(), provider.Request{
+		Model:    "deepseek-reasoner",
+		Messages: []agent.Message{agent.NewUserMessage("hi")},
+	}, provider.StreamCallbacks{
+		OnText:     func(d string) { events = append(events, "T:"+d) },
+		OnThinking: func(d string) { events = append(events, "R:"+d) },
+	})
+	if err != nil {
+		t.Fatalf("SendStream: %v", err)
+	}
+	if got, want := strings.Join(events, ","), "R:think,R:.,T:ans,T:wer"; got != want {
+		t.Errorf("events = %q, want %q", got, want)
+	}
+	if resp.Content != "answer" {
+		t.Errorf("Content = %q", resp.Content)
+	}
+}

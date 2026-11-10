@@ -27,7 +27,7 @@
 #    OCTO_ADMIN_USER / OCTO_ADMIN_PASS  免交互指定登录账号密码（不设则安装时询问）
 #    SWAP_TARGET_MB=2048   swap 目标总量，0 表示不动 swap
 #    OCTO_VERSION=1.17.21-m5  指定 octo 版本（默认镜像仓库最新 Release；m1 手机回车换行，m2 再修权限误拦，
-#                             m4 Mermaid 全屏预览，m5 点上下文圈弹出本对话 token/缓存率统计，m6 网页版输出截断自动加大上限重试并续写，m7 断线重连不再把正在阅读的页面拽到底部，m8 手机上在底部附近上滑不再反复弹回）
+#                             m4 Mermaid 全屏预览，m5 点上下文圈弹出本对话 token/缓存率统计，m6 网页版输出截断自动加大上限重试并续写，m7 断线重连不再把正在阅读的页面拽到底部，m8 手机上在底部附近上滑不再反复弹回，m9 回答中途不再冒出空思考框）
 #    OCTO_SUDO=1           给 octo 用户免密 sudo（默认 1；0 表示不给并移除）
 #    OCTO_FILES_KEEP_DAYS=7  /files/ 下载目录里的文件保留天数
 #    OCTO_KEEP_CRED=1      已有登录账号时免交互直接保留（升级用）

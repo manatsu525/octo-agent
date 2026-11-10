@@ -201,20 +201,30 @@ func (c *Client) SendStream(ctx context.Context, req provider.Request, cb provid
 			result.OutputTokens = choice.Usage.CompletionTokens
 			result.CacheReadTokens = choice.Usage.cachedTokens()
 		}
-		if choice.Delta.Content != "" {
-			contentB.WriteString(choice.Delta.Content)
-			if onChunk != nil {
-				onChunk(choice.Delta.Content)
-			}
-		}
 		// Reasoning trace from thinking models streams in its own delta field.
 		// Always accumulate it (attachReasoning pins it to the tool_use block so
 		// it round-trips in history); surface it to onThinking too when the
 		// caller wants the trace displayed.
+		//
+		// Handled BEFORE content: some backends (DeepSeek behind gateways such
+		// as OpenCode Go) send the transition chunk carrying both the last
+		// reasoning fragment and the first content fragment. Emitting content
+		// first made the UI see thinking → text → thinking, so it closed the
+		// reply bubble and opened a stray "thinking" box holding the trace's
+		// final punctuation mid-answer. For the same reason, reasoning that
+		// still trickles in after the visible reply has started is kept for
+		// history but not surfaced live: within one response a model answers
+		// after it thinks, and a late fragment would split the reply.
 		if choice.Delta.ReasoningContent != "" {
 			reasoningB.WriteString(choice.Delta.ReasoningContent)
-			if onThinking != nil {
+			if onThinking != nil && contentB.Len() == 0 {
 				onThinking(choice.Delta.ReasoningContent)
+			}
+		}
+		if choice.Delta.Content != "" {
+			contentB.WriteString(choice.Delta.Content)
+			if onChunk != nil {
+				onChunk(choice.Delta.Content)
 			}
 		}
 		// Accumulate tool call fragments.
