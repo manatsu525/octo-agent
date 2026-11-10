@@ -1516,11 +1516,46 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
     // press that didn't scroll is not a gesture. So on release only lift the
     // block and catch up on whatever growth it held back.
     let interacting = false
-    const onPointerDown = () => { interacting = true }
-    const onPointerUp = () => {
+    // Touch is handled by the touch* listeners below, not pointer events: a
+    // touch that turns into a native scroll fires 'pointercancel' the moment
+    // the browser takes the gesture over — while the finger is still moving.
+    // Treating that as a release ended `interacting` and re-pinned (stick was
+    // still true: nothing on touch disengaged it the way 'wheel' does), so a
+    // small swipe up near the bottom of a streaming reply bounced straight
+    // back down, over and over — the stutter on phones.
+    const onPointerDown = (e: PointerEvent) => { if (e.pointerType !== 'touch') interacting = true }
+    const onPointerUp = (e?: Event) => {
+      if (e && (e as PointerEvent).pointerType === 'touch') return
+      if (touching) return
       interacting = false
       if (stick) scroller.scrollTop = scroller.scrollHeight
     }
+    // Touch mirrors 'wheel': a finger dragging the content down (reading
+    // upward) disengages stick synchronously, before the ResizeObserver can
+    // pin, and blocks the observer for the whole touch. Momentum after lift
+    // is ordinary scrolling — 'scroll' re-arms only on the way back down, and
+    // the observer re-arms once the view rests at the very bottom.
+    let touching = false
+    let touchLastY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      touching = true
+      interacting = true
+      touchLastY = e.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? touchLastY
+      if (y - touchLastY > 2) stick = false
+      touchLastY = y
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length) return
+      touching = false
+      interacting = false
+    }
+    scroller.addEventListener('touchstart', onTouchStart, { passive: true })
+    scroller.addEventListener('touchmove', onTouchMove, { passive: true })
+    scroller.addEventListener('touchend', onTouchEnd, { passive: true })
+    scroller.addEventListener('touchcancel', onTouchEnd, { passive: true })
     scroller.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('pointerup', onPointerUp)
     window.addEventListener('pointercancel', onPointerUp)
@@ -1531,7 +1566,9 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
     // also the leaving half of a window switch, and it lands at an arbitrary
     // point between a DOM append and the next RO pin — the same stale-position
     // hazard onPointerUp no longer re-derives stick from.)
-    window.addEventListener('blur', onPointerUp)
+    // Blur also clears a touch whose touchend was lost, so `interacting` can't stick.
+    const onBlur = () => { touching = false; onPointerUp() }
+    window.addEventListener('blur', onBlur)
     // Browsers skip rendering updates for a hidden document, so nothing pins
     // while the tab is backgrounded and the scroll events from that period
     // (scroll anchoring, clamping after a block collapses) arrive coalesced
@@ -1549,7 +1586,7 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
     // by the OS (context menu dismissed with Esc, an HTML5 drag) never
     // reaches the window either. Any pointer motion with no buttons held
     // proves the press is over, so clear the flag on the next move.
-    const onPointerMove = (e: PointerEvent) => { if (interacting && e.buttons === 0) interacting = false }
+    const onPointerMove = (e: PointerEvent) => { if (interacting && !touching && e.pointerType !== 'touch' && e.buttons === 0) interacting = false }
     scroller.addEventListener('pointermove', onPointerMove, { passive: true })
 
     const ro = new ResizeObserver(() => {
@@ -1572,10 +1609,14 @@ import QuestionModal from '../components/overlays/QuestionModal.svelte'
       scroller.removeEventListener('scroll', onScroll)
       scroller.removeEventListener('wheel', onWheel)
       scroller.removeEventListener('pointerdown', onPointerDown)
+      scroller.removeEventListener('touchstart', onTouchStart)
+      scroller.removeEventListener('touchmove', onTouchMove)
+      scroller.removeEventListener('touchend', onTouchEnd)
+      scroller.removeEventListener('touchcancel', onTouchEnd)
       scroller.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerUp)
-      window.removeEventListener('blur', onPointerUp)
+      window.removeEventListener('blur', onBlur)
       document.removeEventListener('visibilitychange', onVisibility)
       if (unstickTimer) clearTimeout(unstickTimer)
       ro.disconnect()
