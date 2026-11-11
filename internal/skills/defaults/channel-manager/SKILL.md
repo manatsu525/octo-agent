@@ -1,4 +1,5 @@
 ---
+catalog: "Set up or diagnose IM channels (Feishu, WeChat, WeCom, DingTalk, Discord, Telegram) in ~/.octo/channels.yml (配置飞书/微信/钉钉, 渠道设置/状态/诊断)."
 name: channel-manager
 system: true
 description: |

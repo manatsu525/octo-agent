@@ -1,4 +1,5 @@
 ---
+catalog: "Turn documents/URLs/Markdown into SVG slides and export PPTX (做PPT, 生成PPT, 制作演示文稿, create PPT)."
 name: ppt-master
 description: >
   AI-driven multi-format SVG content generation system. Converts source documents

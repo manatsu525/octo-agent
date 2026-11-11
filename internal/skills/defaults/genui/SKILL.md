@@ -1,4 +1,5 @@
 ---
+catalog: "Read before render_ui or an ```octo-ui fence: in-chat dashboards, stat cards, filterable tables, charts, forms, choice panels, quizzes."
 name: genui
 description: Render structured, glanceable, interactive UI in the chat instead of plain text — dashboards, stat cards, filterable tables, charts, choice panels, forms, quizzes. Panels can carry an id so later turns update them in place, and most interaction resolves in the browser with no round-trip. Read this before calling render_ui or emitting a ```octo-ui fence, so the spec you produce matches the node whitelist and caps the renderer actually enforces.
 ---

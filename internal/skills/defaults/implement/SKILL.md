@@ -1,4 +1,5 @@
 ---
+catalog: "Implement a tech design in dependency-ordered TDD slices with sub-agent review and a resumable state file (实现吧, 开始实现, 按这个方案做, 把设计落地)."
 name: implement
 description: Implement a technical design by decomposing it into dependency-ordered vertical slices, executing each with TDD red-green, reviewing each via an isolated sub-agent, and persisting progress to a state file so work survives session restarts. Use when the user has a tech design (doc or settled conversation) and says "implement", "start building", "let's code this", "实现吧", "开始实现", "按这个方案做", "把设计落地".
 ---

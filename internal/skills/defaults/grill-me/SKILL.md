@@ -1,4 +1,5 @@
 ---
+catalog: "Interview the user hard about a plan/design until it is fully resolved (grill me, 拷问我, 帮我把方案想清楚, 挑战一下这个设计)."
 name: grill-me
 license: MIT
 description:

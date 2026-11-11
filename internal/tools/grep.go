@@ -34,21 +34,8 @@ type GrepTool struct{}
 
 func (GrepTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "grep",
-		Description: "Search file contents with ripgrep (rg). Pattern is a regex. " +
-			"ALWAYS pass `path` explicitly — the absolute path of the project or directory " +
-			"you intend to search (from the Environment section). Omitting it searches " +
-			"the session's working directory, which is often NOT the project you mean " +
-			"(e.g. a scratch workspace under `octo serve`), producing misleading " +
-			"'No files were searched' or empty results. " +
-			"Use mode='files_with_matches' for path-only output, mode='count' for " +
-			"per-file counts, or the default mode='content' to see matching lines. " +
-			"Set context_lines (or before/after) to include surrounding lines. " +
-			"Respects .gitignore. Returns at most 200 output lines — narrow the " +
-			"pattern or set include/path if you hit the cap. Matching lines over " +
-			"500 chars are truncated with a preview of the first 500 bytes. " +
-			"Output includes line numbers. " +
-			"Requires `rg` on PATH.",
+		Name:        "grep",
+		Description: "Search file contents with ripgrep (Rust regex). ALWAYS pass `path` (absolute project/directory path); omitted, it searches the session's working directory and returns misleading empty or 'No files were searched' results. mode: 'content' (default, with line numbers), 'files_with_matches', 'count'. context_lines/before/after add context. Respects .gitignore. Max 200 output lines (narrow pattern/include/path if capped); lines over 500 chars are truncated.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -57,10 +44,8 @@ func (GrepTool) Definition() agent.ToolDefinition {
 					"description": "Regex pattern (Rust regex syntax — same as ripgrep).",
 				},
 				"path": map[string]any{
-					"type": "string",
-					"description": "Where to search. Pass the absolute path of the project or directory " +
-						"you intend to search — do not omit it. Without it rg searches the session's " +
-						"working directory, which is often not the project you mean.",
+					"type":        "string",
+					"description": "Absolute path of the project/directory to search. Don't omit it.",
 				},
 				"include": map[string]any{
 					"type":        "string",

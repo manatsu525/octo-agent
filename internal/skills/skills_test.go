@@ -400,3 +400,27 @@ func TestDelete_SymlinkedSkillKeepsTarget(t *testing.T) {
 		t.Errorf("shared original was removed: %v", err)
 	}
 }
+
+func TestRenderManifest_CatalogLine(t *testing.T) {
+	userRoot := t.TempDir()
+	useUserRoot(t, userRoot)
+	writeSkill(t, userRoot, "short", "---\ndescription: A very long description\ncatalog: \"tiny line (触发)\"\n---\nbody")
+	long := strings.Repeat("word ", 200)
+	writeSkill(t, userRoot, "long", "---\ndescription: |\n  "+long+"\n---\nbody")
+	m := RenderManifest(Discover())
+	if !strings.Contains(m, "- short: tiny line (触发)") {
+		t.Errorf("catalog line not used:\n%s", m)
+	}
+	if strings.Contains(m, "A very long description") {
+		t.Errorf("description should be replaced by catalog")
+	}
+	for _, line := range strings.Split(m, "\n") {
+		if strings.HasPrefix(line, "- long: ") && len([]rune(line)) > maxCatalogRunes+12 {
+			t.Errorf("uncatalogued description not capped: %d runes", len([]rune(line)))
+		}
+	}
+	// The full description is still what the skill carries.
+	if s, ok := Discover().Get("short"); !ok || s.Description != "A very long description" {
+		t.Errorf("description changed: %+v", s)
+	}
+}

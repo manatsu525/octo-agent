@@ -577,6 +577,10 @@ func New(cfg Config) (*Server, error) {
 	// proactively push to an IM chat it isn't currently talking to — e.g. a web
 	// session asked to message the user's WeChat.
 	tools.SetMessenger(serverMessenger{s})
+	// …but only while some IM channel is actually enabled: without one the
+	// two tools can do nothing and would only add their schemas to every
+	// request.
+	tools.SetMessengerAvailable(imChannelsConfigured)
 
 	// Guard the hosting process: the agent must not kill its own octo server
 	// (it would drop the live session); restart_server is the graceful path.
@@ -828,6 +832,7 @@ func (s *Server) doShutdown(ctx context.Context) error {
 	tools.SetDefaultSubAgentManager(nil)
 	tools.SetTaskStore(nil)
 	tools.SetMessenger(nil)
+	tools.SetMessengerAvailable(nil)
 	tools.SetServerGuard(false)
 	// Flush any queued async hooks (retention) to disk so a restart/shutdown
 	// doesn't drop them; the next process redelivers.

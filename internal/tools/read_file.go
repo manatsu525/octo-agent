@@ -49,20 +49,8 @@ type ReadFileTool struct{}
 
 func (ReadFileTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "read_file",
-		Description: "Read a UTF-8 text file and return its content with cat-n-style " +
-			"line numbers. Up to 2000 lines per call — use offset/limit to paginate. " +
-			"The line-number column is for your reference only — it is not part of the " +
-			"file, so never copy it into edit_file's old_string. " +
-			"When the response includes '[end of file: N lines total]' the entire file " +
-			"has been read; do not call read_file again for the same path. " +
-			"Absolute paths are preferred; relative paths resolve against the current " +
-			"working directory. Refuses binary extensions (executables, archives, " +
-			"PDFs, DBs), files whose content is binary or UTF-16 (use the terminal " +
-			"tool for those), and blocking device files (/dev/random, /dev/tty etc). " +
-			"Image files (.png, .jpg, .jpeg, .gif, .webp, .bmp, .tiff, .heic, .ico) " +
-			"are returned as image content for multimodal model consumption, or a " +
-			"refusal if the active model does not accept image input.",
+		Name:        "read_file",
+		Description: "Read a UTF-8 text file with cat -n style line numbers, up to 2000 lines per call (paginate with offset/limit). The number column is not file content: never copy it into edit_file's old_string. '[end of file: N lines total]' means the whole file was read; don't read it again. Absolute paths preferred. Refuses binary files (executables, archives, PDFs, DBs, UTF-16; use terminal) and blocking devices. Images (.png .jpg .jpeg .gif .webp .bmp .tiff .heic .ico) come back as image content when the model accepts images.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

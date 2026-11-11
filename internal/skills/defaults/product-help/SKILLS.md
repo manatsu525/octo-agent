@@ -34,3 +34,15 @@ Walk the diff hunk by hunk and flag correctness bugs first, then style.
 `name` and `description` are the only required frontmatter fields — the description is what the model sees to decide when the skill applies, so make it specific about triggers. Drop it under `~/.octo/skills/<name>/`. The `skill-creator` default skill can also build one interactively.
 
 Full built-in skill catalog (18 skills, grouped by purpose) and the `octo skills add` source format: **https://octo-agent.dev/docs/guides/use-skills/** (`web_fetch`).
+
+## Installing a skill for the user (agent notes)
+
+Prefer the CLI over a manual `git clone`:
+
+- `octo skills list` — list installed skills.
+- `octo skills add <owner/repo[/sub/path]>` — install from GitHub into `~/.octo/skills/<name>`; add `--force` to replace an installed one.
+- `octo skills path` — print the skill roots (default, user, project) in increasing precedence.
+
+A skill is a directory with a `SKILL.md`. User skills live in `~/.octo/skills/<name>/`; project skills in `.octo/skills/<name>/` under the working directory override user skills of the same name.
+
+After installing, read its `SKILL.md`. If it names another agent's tools (e.g. Claude Code), map them: `Bash` → `terminal`; `Read`/`Write`/`Edit` → `read_file`/`write_file`/`edit_file`; `Grep`/`Glob` → `grep`/`glob`; `Task`/`Agent` → `sub_agent`; `WebFetch`/`WebSearch` → `web_fetch`/`web_search`. If a tool has no octo equivalent, tell the user instead of improvising.

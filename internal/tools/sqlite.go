@@ -26,26 +26,8 @@ type SQLiteTool struct{}
 
 func (SQLiteTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "sqlite",
-		Description: "Run one SQL statement against a named SQLite database. Databases live in " +
-			"`~/.octo/databases/<db>.db`, are created on first use, and persist across sessions — " +
-			"use them for data collected over time (a scheduled task appending results, a log, a " +
-			"dataset a page shows). The name is all a reader needs: an HTML artifact or Light App " +
-			"page reads the same database with `fetch('./__octo/db/<db>', {method:'POST', body: " +
-			"JSON.stringify({sql, params})})` — it answers `{columns, rows}` with each row an array in " +
-			"`columns` order, not an object — so a writer never needs to know where a page lives.\n\n" +
-			"One statement per call (a second one is refused); use a multi-row VALUES list or " +
-			"INSERT … SELECT to write many rows at once. Bind values with `?` placeholders and " +
-			"`params` rather than splicing them into the SQL. ATTACH and VACUUM INTO are refused. " +
-			"A statement that returns rows prints them tab-separated under a header line (up to " +
-			"200 rows, long values cut short; use count(*) or LIMIT/OFFSET for more); any other " +
-			"prints the changed-row count and last insert id. List existing databases with glob " +
-			"on `~/.octo/databases/*.db`; see a database's tables with `SELECT sql FROM sqlite_master`.\n\n" +
-			"In the conversation, read and write these databases with this tool, not `sqlite3` or a " +
-			"script through terminal: Windows has no `sqlite3`, and this tool waits for locks and " +
-			"refuses a second statement. A script meant to run outside octo (from the OS scheduler, " +
-			"say) may write them with its language's SQLite library, opening the file with a lock " +
-			"wait (Python: `sqlite3.connect(path, timeout=5)`).",
+		Name:        "sqlite",
+		Description: "Run one SQL statement on a named SQLite database (`~/.octo/databases/<db>.db`, created on first use, persistent). Use for data collected over time (scheduled-task results, logs, data a page shows). Pages (artifacts, Light Apps) read the same db by name via `fetch('./__octo/db/<db>', {method:'POST', body: JSON.stringify({sql, params})})`, which returns `{columns, rows}` with rows as arrays in column order.\n\nOne statement per call (write many rows with multi-row VALUES or INSERT … SELECT); bind values with `?` and `params`; ATTACH and VACUUM INTO are refused. Queries print up to 200 tab-separated rows (use count(*) or LIMIT/OFFSET for more); writes print the changed count and last insert id. List dbs with glob `~/.octo/databases/*.db`; tables via `SELECT sql FROM sqlite_master`. In the conversation always use this tool, never `sqlite3` or scripts via terminal (it waits for locks); a script run outside octo may use its SQLite library with a lock wait (Python `sqlite3.connect(path, timeout=5)`).",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

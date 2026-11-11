@@ -3,7 +3,7 @@
 After each turn the TUI offers **one** LLM-generated follow-up — a next message
 the user might send — as **ghost text** in the empty input box. `Tab` or `→`
 accepts it (fills the input to edit or send); typing or starting a turn
-dismisses it. On by default; `--no-suggest` / `OCTO_SUGGEST=0` turns it off.
+dismisses it. Off by default in this fork (each suggestion is a hidden extra request carrying the full prompt, tools and history); `OCTO_SUGGEST=1` turns it on, `--no-suggest` forces it off.
 
 ## Generation
 

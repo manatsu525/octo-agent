@@ -27,7 +27,7 @@
 #    OCTO_ADMIN_USER / OCTO_ADMIN_PASS  免交互指定登录账号密码（不设则安装时询问）
 #    SWAP_TARGET_MB=2048   swap 目标总量，0 表示不动 swap
 #    OCTO_VERSION=1.17.21-m5  指定 octo 版本（默认镜像仓库最新 Release；m1 手机回车换行，m2 再修权限误拦，
-#                             m4 Mermaid 全屏预览，m5 点上下文圈弹出本对话 token/缓存率统计，m6 网页版输出截断自动加大上限重试并续写，m7 断线重连不再把正在阅读的页面拽到底部，m8 手机上在底部附近上滑不再反复弹回，m9 回答中途不再冒出空思考框）
+#                             m4 Mermaid 全屏预览，m5 点上下文圈弹出本对话 token/缓存率统计，m6 网页版输出截断自动加大上限重试并续写，m7 断线重连不再把正在阅读的页面拽到底部，m8 手机上在底部附近上滑不再反复弹回，m9 回答中途不再冒出空思考框，m10 精简起步提示词和工具（首个请求约 34k→15k token）、默认关闭"建议下一句"隐藏请求）
 #    OCTO_SUDO=1           给 octo 用户免密 sudo（默认 1；0 表示不给并移除）
 #    OCTO_FILES_KEEP_DAYS=7  /files/ 下载目录里的文件保留天数
 #    OCTO_KEEP_CRED=1      已有登录账号时免交互直接保留（升级用）
@@ -267,8 +267,64 @@ if [ ! -s "$MCP_FILE" ]; then
   }
 }
 EOF
-  chown "$OCTO_USER:$OCTO_USER" "$MCP_FILE"; chmod 644 "$MCP_FILE"
 fi
+# 精简这两个默认 MCP：只暴露搜/抓工具并缩短描述（每次请求省约 5k token）。
+# 只改 url 还是默认值、且没有自定义 tools/tool_overrides 的条目；可重复运行。
+python3 - "$MCP_FILE" <<'PYEOF' || warn "mcp.json 精简失败，保持原样"
+# Adds tool allowlists + compact overrides to the default keenable/parallel MCP entries.
+# Usage: python3 mcp_slim.py /path/to/mcp.json   (idempotent; leaves other servers and custom entries alone)
+import json,sys
+SLIM={
+ "keenable":{
+  "tools":["search_web_pages","fetch_page_content"],
+  "tool_overrides":{
+   "search_web_pages":{
+    "description":"Web search (first choice in the search order). Describe the ideal page in natural language rather than keywords. Narrow with published_after (recency), site, exclude_domains; mode 'pro' (default, better) or 'realtime' (fastest).",
+    "params":["query","published_after","site","exclude_domains","max_results","mode"],
+    "param_descriptions":{
+     "query":"Natural-language description of the ideal page.",
+     "published_after":"Only pages published after this: YYYY-MM-DD, ISO time, or an offset back from now like \"2h\", \"7d\", \"1mo\".",
+     "site":"Restrict to one site, e.g. \"techcrunch.com\".",
+     "exclude_domains":"Hosts to leave out (subdomains included).",
+     "max_results":"Number of results (default 10, max 50).",
+     "mode":"'pro' (default) or 'realtime'."}},
+   "fetch_page_content":{
+    "description":"Fetch a web page as markdown.",
+    "params":["url","live","max_chars","prompt"],
+    "param_descriptions":{
+     "url":"The URL to fetch.",
+     "live":"true fetches live instead of the indexed copy (fast-changing or unindexed pages).",
+     "max_chars":"Cap on returned characters (default 50000).",
+     "prompt":"Optional extraction instruction; returns only that answer from the page (saves context on long pages)."}}}},
+ "parallel":{
+  "tools":["web_search","web_fetch"],
+  "tool_overrides":{
+   "web_search":{
+    "description":"Web search returning LLM-ready excerpts, usually enough without a fetch (second choice in the search order). One call per independent objective.",
+    "params":["objective","search_queries"],
+    "param_descriptions":{
+     "objective":"What you are looking for, atomic; may name preferred sources or freshness.",
+     "search_queries":"2-3 concise keyword queries of 3-6 words; site:domain allowed, no quoted phrases or URL paths."}},
+   "web_fetch":{
+    "description":"Extract content from specific URLs when search excerpts are not enough (exact wording, full-page analysis). Related URLs with one objective go in one call.",
+    "params":["urls","objective","full_content"],
+    "param_descriptions":{
+     "urls":"Up to 20 http(s) URLs.",
+     "objective":"What to extract, at most 200 characters.",
+     "full_content":"true returns the whole page as markdown (can be tens of thousands of tokens); default returns focused excerpts."}}}},
+}
+URL={"keenable":"https://api.keenable.ai/mcp","parallel":"https://mcp.parallel.ai/mcp"}
+p=sys.argv[1]
+d=json.load(open(p))
+ch=False
+for name,cfg in d.get("mcpServers",{}).items():
+    if name in SLIM and cfg.get("url")==URL[name] and "tools" not in cfg and "tool_overrides" not in cfg:
+        cfg.update(SLIM[name]); ch=True
+if ch:
+    json.dump(d,open(p,"w"),ensure_ascii=False,indent=2); open(p,"a").write("\n")
+print("updated" if ch else "unchanged")
+PYEOF
+chown "$OCTO_USER:$OCTO_USER" "$MCP_FILE"; chmod 644 "$MCP_FILE"
 
 # 免密 sudo
 if [ "${OCTO_SUDO:-1}" = 1 ]; then
@@ -664,10 +720,10 @@ s=re.sub(r'\n?<!-- octo-deploy:files -->.*?<!-- /octo-deploy:files -->\n?','\n',
 block=f'''<!-- octo-deploy:files -->
 ## 必须遵守
 
-- 用户在 Web 界面里无法直接接收文件，send_file 只用于 IM。凡是要交给用户的文件（压缩包、文档、图片、安装包等），复制到 `{d}/`（可建子目录），然后直接在回复里给出下载链接 `{u}/<文件名>`（文件名含空格或中文时做 URL 编码）。不要只报服务器路径，也不要做下载页。该目录的文件 {k} 天后自动清理。
-- 找图：用 `img-search` 拿图片直链（必应图片），不要去扒网页源码。要“近期/最新”的图必须加 `-d 30`（或 7），关键词不要自己加年份（你的知识有截止日期，会搜出旧图）；外国人物/事物可用当地语言原名并配对应市场（-m），其余情况不用加；优先新闻、官网来源。在聊天里给用户看图：把挑好的图下载到 `{d}/` 下，先用 `convert 原图 -resize '1280x1280>' -quality 82 新图.jpg` 压到 1280px 以内，然后在回复里直接写 Markdown 图片 `![说明]({u}/<文件名>)`，聊天界面会直接显示；不要只给压缩包或下载链接。
-- 网页搜索/抓取按这个顺序选工具（没配置的就跳过）：先用 keenable MCP（`search_web_pages` / `fetch_page_content`）；它限流、报错或结果明显不理想（无关、过旧、太少）时，换 parallel MCP（`web_search` / `web_fetch`）；两者都不行再用内置的 `web_search` / `web_fetch`（抓 DDG / 必应）。提示词或技能里写的“web_search / web_fetch”泛指网页搜索/抓取，不特指同名的 MCP 工具。
-- 运行用户有免密 sudo：需要 root 的命令（apt-get 装软件、改系统配置等）直接加 sudo，不要因为权限不足而放弃。不要改动或重启 xray/v2ray、sshd 和 nginx 的 octo 配置。
+- 交付文件：Web 界面收不到文件，send_file 只用于 IM。要给用户的文件（压缩包、文档、图片、安装包等）复制到 `{d}/`（可建子目录），回复里直接给链接 `{u}/<文件名>`（文件名有空格或中文要 URL 编码）。不要只报服务器路径，不要做下载页。文件 {k} 天后自动清理。该路径有 nginx 登录鉴权，curl 验证会 302 到 `/login`，属正常，不是链接失效。
+- 找图：用 `img-search` 拿图片直链（必应图片），别扒网页源码。要近期/最新的图必须加 `-d 30`（或 7），关键词别自己加年份（知识有截止日期，会搜出旧图）；外国人物/事物可用当地语言原名并配对应市场 `-m`，其余不加；优先新闻、官网来源。给用户看图：下载到 `{d}/`，用 `convert 原图 -resize '1280x1280>' -quality 82 新图.jpg` 压到 1280px 内，然后在回复里写 `![说明]({u}/<文件名>)` 直接显示；不要只给压缩包或下载链接。
+- 网页搜索/抓取顺序（没配置的跳过）：先用 keenable MCP（`search_web_pages` / `fetch_page_content`）；它限流、报错或结果明显不理想（无关、过旧、太少）时换 parallel MCP（`web_search` / `web_fetch`）；都不行再用内置 `web_search` / `web_fetch`（DDG / 必应）。提示词或技能里说的 web_search / web_fetch 泛指搜索/抓取，不特指同名 MCP 工具。
+- 运行用户有免密 sudo：需要 root 的命令（装软件、改系统配置等）直接加 sudo，别因权限不足放弃。不要改动或重启 xray/v2ray、sshd 和 nginx 的 octo 配置。
 <!-- /octo-deploy:files -->'''
 open(f,'w',encoding='utf-8').write((s+'\n\n' if s else '')+block+'\n')
 PYEOF

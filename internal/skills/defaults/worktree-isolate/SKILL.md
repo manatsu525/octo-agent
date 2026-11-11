@@ -1,4 +1,5 @@
 ---
+catalog: "Do risky/experimental changes in an isolated git worktree, then merge or discard (worktree 隔离, 在临时分支上做, 隔离环境跑一下)."
 name: worktree-isolate
 description: Do risky or experimental work in an isolated git worktree, then merge or discard. Use when the user wants changes tried in isolation ("试在 worktree 里改", "隔离环境跑一下", "worktree 隔离", "在临时分支上做"), or before a large/uncertain edit that shouldn't touch the main checkout. Trailing text is the task to perform in the worktree.
 ---

@@ -50,21 +50,8 @@ type WebFetchTool struct{}
 
 func (WebFetchTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "web_fetch",
-		Description: "Fetch a URL and return its content via a direct HTTP GET with a " +
-			"browser-like header set (JS-rendered pages return their static HTML skeleton; " +
-			"for interactive or login-walled content use the browser tool). " +
-			"HTML pages are converted to clean Markdown — the main article when it can be " +
-			"identified, the whole page otherwise; pass clean=false for the raw response body. " +
-			"Responses larger than ~64 KB are saved to a temp file; the tool returns a " +
-			"preview summary (size, content-type, first/last lines) plus the file path. " +
-			"Use read_file or grep on that path to inspect the full content. " +
-			"Returns text only — for a binary/image URL it returns a short notice (download " +
-			"it with the terminal tool, then read_file an image for multimodal viewing). " +
-			"Public web only — no authentication.\n\n" +
-			"If a URL returns 403/404 even though it works in a browser (hotlink/anti-bot " +
-			"checks), set `referer` — e.g. the page's own origin (https://example.com) or the " +
-			"search engine you found it from — or override `user_agent`.",
+		Name:        "web_fetch",
+		Description: "HTTP GET a public URL with browser-like headers (no auth; JS-rendered pages give their static HTML, use the browser for interactive or logged-in pages). HTML becomes clean Markdown (main article when found); clean=false gives the raw body. Responses over ~64 KB are saved to a temp file and a preview plus the path is returned (read_file/grep it). Text only: download binaries/images with terminal. On 403/404 that works in a browser, set `referer` (the site's origin or the search engine) or `user_agent`.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -74,7 +61,7 @@ func (WebFetchTool) Definition() agent.ToolDefinition {
 				},
 				"referer": map[string]any{
 					"type":        "string",
-					"description": "Optional Referer header. Use when a page 403/404s without one (hotlink protection, anti-bot). Often the page's own origin or the search-result source.",
+					"description": "Optional Referer for hotlink/anti-bot 403/404s, often the site's origin or the search source.",
 				},
 				"user_agent": map[string]any{
 					"type":        "string",
@@ -82,7 +69,7 @@ func (WebFetchTool) Definition() agent.ToolDefinition {
 				},
 				"clean": map[string]any{
 					"type":        "boolean",
-					"description": "Convert HTML responses to clean Markdown (extracting the main content when possible). Default true. Set false to get the raw response body — useful when you need the markup itself (meta tags, JSON-LD, inline data).",
+					"description": "Convert HTML to clean Markdown (default true). false returns raw markup (meta tags, JSON-LD, inline data).",
 				},
 			},
 			"required": []string{"url"},

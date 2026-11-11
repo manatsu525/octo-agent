@@ -76,7 +76,7 @@ func mcpToolDefs() []agent.ToolDefinition {
 		// Synthetic resource_read: present when the server advertises
 		// resources/* capability at all (some servers expose resources via
 		// templates without prepopulating the list).
-		if conn.Client.Capabilities().Resources != nil {
+		if conn.Client.Capabilities().Resources != nil && conn.Exposes("resource_read") {
 			defs = append(defs, agent.ToolDefinition{
 				Name:        mcpToolName(conn.Name, "resource_read"),
 				Description: fmt.Sprintf("[mcp:%s] Read an MCP resource by URI. Available resources: %s", conn.Name, joinResourceURIs(conn.Resources())),
@@ -94,7 +94,7 @@ func mcpToolDefs() []agent.ToolDefinition {
 		}
 		// Synthetic prompt_get: same gating, present whenever the server
 		// advertises prompts/*.
-		if conn.Client.Capabilities().Prompts != nil {
+		if conn.Client.Capabilities().Prompts != nil && conn.Exposes("prompt_get") {
 			defs = append(defs, agent.ToolDefinition{
 				Name:        mcpToolName(conn.Name, "prompt_get"),
 				Description: fmt.Sprintf("[mcp:%s] Materialise an MCP prompt template. Available prompts: %s", conn.Name, joinPromptNames(conn.Prompts())),
@@ -145,6 +145,9 @@ func executeMCP(ctx context.Context, name string, input map[string]any, progress
 	conn := reg.Get(server)
 	if conn == nil {
 		return fail("mcp: server %q is not connected", server)
+	}
+	if !conn.Exposes(tool) {
+		return fail("mcp: tool %q is not enabled for server %q (see \"tools\" in mcp.json)", tool, server)
 	}
 
 	switch tool {

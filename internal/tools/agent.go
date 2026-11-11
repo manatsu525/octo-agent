@@ -88,34 +88,18 @@ func (AgentTool) DefinitionForCtx(ctx context.Context, sessionModel string) agen
 
 func definitionFor(sessionModel string, store *agentprofile.Store) agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "sub_agent",
-		Description: "Launch an autonomous sub-agent to handle a focused sub-task. " +
-			"The sub-agent runs with its own context window and tool budget. " +
-			"Use when you need parallel investigation, a fresh context for an isolated " +
-			"sub-problem, or when the task is well-defined enough to delegate.\n\n" +
-			"The child always starts with zero conversation context and the persona named by " +
-			"subagent_type — it can never see this conversation, so make the prompt a complete, " +
-			"self-contained task description (file paths, constraints, deliverable). " +
-			"'explore' for read-only investigation/research and planning, " +
-			"'general' for delegated work that modifies files, 'code-review' for an independent " +
-			"read of changes. To branch the conversation itself, use the session branch feature " +
-			"instead — a sub-agent is not a conversation fork.\n\n" +
-			"How the result reaches you is handled for you: it either comes back in this tool call or " +
-			"arrives later as a completion notification. Both are normal and you do not choose between them. " +
-			"When you get the notification form, end your turn and wait — the notification will reach you.\n\n" +
-			"Follow up with sub_agent_send. Do not poll sub_agent_status while waiting for a background sub-agent; " +
-			"wait for the completion notification instead. Use sub_agent_status only to list running agents or when you " +
-			"suspect a sub-agent is stuck. Use sub_agent_kill to terminate a stuck or no-longer-needed agent.",
+		Name:        "sub_agent",
+		Description: "Launch an autonomous sub-agent for a focused sub-task, with its own context and tool budget: parallel investigation, an isolated sub-problem, or well-defined delegated work. It starts with zero conversation context, so the prompt must be self-contained (paths, constraints, deliverable). Types: 'explore' read-only research/planning, 'general' work that edits files, 'code-review' an independent read of changes. (To fork the conversation itself, use session branching.)\n\nThe result comes back in this call or later as a completion notification; both are normal. On the notification form, end your turn and wait. Follow up with sub_agent_send; don't poll sub_agent_status (use it only to list agents or check a suspected hang); stop a stuck or unneeded one with sub_agent_kill.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"description": map[string]any{
 					"type":        "string",
-					"description": "Short human-readable label for this sub-agent (3-7 words). Shown in progress UI; doesn't shape behavior. Example: 'Investigate auth middleware'.",
+					"description": "Short label, 3-7 words, shown in the UI.",
 				},
 				"prompt": map[string]any{
 					"type":        "string",
-					"description": "The task for the sub-agent. Make it self-contained: include all context the sub-agent needs (file paths, constraints, deliverable) since it can't see this conversation. State the expected output shape (a summary, a list, a YES/NO).",
+					"description": "The complete, self-contained task (it can't see this conversation), including the expected output shape (summary, list, YES/NO).",
 				},
 				"subagent_type": map[string]any{
 					"type":        "string",
@@ -128,7 +112,7 @@ func definitionFor(sessionModel string, store *agentprofile.Store) agent.ToolDef
 				"tools": map[string]any{
 					"type":        "array",
 					"items":       map[string]any{"type": "string"},
-					"description": "Optional tool-name allowlist for the sub-agent. Omit to inherit your tools (minus sub_agent itself — no recursion). An empty array is not the same as omitting: it means the sub-agent gets NO tools, and it also discards the agent type's own allowlist. Only pass [] when you want a sub-agent that cannot act.",
+					"description": "Optional tool allowlist. Omit to inherit yours (minus sub_agent). [] means NO tools (and drops the type's own allowlist).",
 				},
 			},
 			"required": []string{"description", "prompt", "subagent_type"},

@@ -40,7 +40,26 @@ type Skill struct {
 	Dir         string // absolute path of the skill directory
 	Source      string // "user" | "default" | "expert" — see Discover for the semantics
 	System      bool   // frontmatter system: true → hidden from expert agent manifests
+	Catalog     string // optional frontmatter catalog: the short system-prompt manifest line
 }
+
+// catalogLine is the text a skill contributes to the system-prompt manifest:
+// its short `catalog` frontmatter when set, otherwise the description folded
+// onto one line and capped, so a long trigger list doesn't ride along in every
+// request (the full description is still shown when the skill is loaded).
+func (s Skill) catalogLine() string {
+	if s.Catalog != "" {
+		return s.Catalog
+	}
+	d := strings.Join(strings.Fields(s.Description), " ")
+	if r := []rune(d); len(r) > maxCatalogRunes {
+		d = strings.TrimSpace(string(r[:maxCatalogRunes])) + "…"
+	}
+	return d
+}
+
+// maxCatalogRunes caps an uncatalogued skill's manifest line.
+const maxCatalogRunes = 360
 
 // Registry holds the skills discovered for a session, indexed by name. It is
 // safe for concurrent use (sub-agents share one registry and call the skill
@@ -105,6 +124,7 @@ func (r *Registry) scanRoot(root, source string) {
 			continue
 		}
 		desc, sys, body, ok := parse(b)
+		catalog := parseCatalog(b)
 		if !ok || desc == "" {
 			continue
 		}
@@ -116,6 +136,7 @@ func (r *Registry) scanRoot(root, source string) {
 			Name:        name,
 			System:      sys,
 			Description: desc,
+			Catalog:     catalog,
 			Body:        strings.TrimSpace(body),
 			Dir:         abs,
 			Source:      source,
@@ -146,6 +167,20 @@ type frontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	System      bool   `yaml:"system"` // hidden from expert agent manifests
+	Catalog     string `yaml:"catalog"`
+}
+
+// parseCatalog returns the optional one-line `catalog` frontmatter value.
+func parseCatalog(b []byte) string {
+	front, _, ok := splitFrontmatter(string(b))
+	if !ok {
+		return ""
+	}
+	var fm frontmatter
+	if yaml.Unmarshal([]byte(front), &fm) != nil {
+		return ""
+	}
+	return strings.Join(strings.Fields(fm.Catalog), " ")
 }
 
 // parse splits a SKILL.md into its frontmatter description and body. It expects
@@ -351,21 +386,23 @@ func (r *Registry) Delete(name string) error {
 // would be noise in every other session's prompt; an expert sees its own via
 // ManifestForProfile's tool_skills path. Returns "" for a nil/empty registry
 // so the caller can skip the prompt layer.
+// manifestHeader opens the skills manifest.
+const manifestHeader = "When a request matches a skill below, you MUST call the `skill` tool with its name and follow the loaded instructions; " +
+	"don't work from the one-line summary. The user can also type /<name>.\n\n"
+
 func RenderManifest(r *Registry) string {
 	if r.Len() == 0 {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString("# Available skills\n\n")
-	b.WriteString("When a task matches a skill's description, call the `skill` tool with its " +
-		"name to load the full instructions before acting. Don't guess the instructions " +
-		"from the one-line description. The user can also trigger one directly by typing /<name>.\n\n")
+	b.WriteString(manifestHeader)
 	n := 0
 	for _, s := range r.List() {
 		if s.Source == "expert" {
 			continue
 		}
-		fmt.Fprintf(&b, "- %s: %s\n", s.Name, s.Description)
+		fmt.Fprintf(&b, "- %s: %s\n", s.Name, s.catalogLine())
 		n++
 	}
 	if n == 0 {
@@ -413,14 +450,12 @@ func ManifestForProfile(r *Registry, profile *agentprofile.Profile) string {
 	}
 	var b strings.Builder
 	b.WriteString("# Available skills\n\n")
-	b.WriteString("When a task matches a skill's description, call the `skill` tool with its " +
-		"name to load the full instructions before acting. Don't guess the instructions " +
-		"from the one-line description. The user can also trigger one directly by typing /<name>.\n\n")
+	b.WriteString(manifestHeader)
 	expert := profile.Source != agentprofile.SourceBuiltin
 	n := 0
 	for _, s := range r.List() {
 		if allowed[s.Name] && !(expert && s.System) {
-			fmt.Fprintf(&b, "- %s: %s\n", s.Name, s.Description)
+			fmt.Fprintf(&b, "- %s: %s\n", s.Name, s.catalogLine())
 			n++
 		}
 	}

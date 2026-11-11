@@ -1,4 +1,5 @@
 ---
+catalog: "Thorough multi-source, fact-checked research report with citations (深度调研, 写调研报告, 多来源核实, 背景调查); ask 2-3 scoping questions first if vague. Quick lookups: just search."
 name: deep-research
 license: MIT
 description:

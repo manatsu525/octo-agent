@@ -43,6 +43,10 @@ type Connection struct {
 	Name   string
 	Client *Client
 
+	// filter trims and rewrites the advertised tools per mcp.json; nil
+	// exposes them verbatim.
+	filter *toolFilter
+
 	// listMu guards the three surface listings against the refresh a
 	// listChanged notification triggers.
 	listMu    sync.RWMutex
@@ -92,7 +96,12 @@ func (c *Connection) Prompts() []Prompt {
 	return c.prompts
 }
 
+// Exposes reports whether the named tool (or synthetic "resource_read" /
+// "prompt_get" surface) is configured to be visible to the model.
+func (c *Connection) Exposes(name string) bool { return c.filter.Allows(name) }
+
 func (c *Connection) setTools(t []Tool) {
+	t = c.filter.apply(t)
 	c.listMu.Lock()
 	c.tools = t
 	c.listMu.Unlock()
@@ -333,7 +342,7 @@ func connectOne(ctx context.Context, name string, entry ServerEntry, info Implem
 		return nil, err
 	}
 
-	conn := &Connection{Name: name, Client: client}
+	conn := &Connection{Name: name, Client: client, filter: newToolFilter(entry)}
 	// Pre-fetch surface listings so per-turn calls don't pay an RPC just
 	// to enumerate. We tolerate per-surface failures — a server with
 	// broken resources/list still gets its tools/list cached.

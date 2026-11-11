@@ -1,4 +1,5 @@
 ---
+catalog: "Create/edit/delete/list agent profiles (experts) and bind them to IM chats (创建专家, 管理专家, 专家列表, 绑定到群)."
 name: expert-agent-manager
 system: true
 description: Manage octo's agent profiles through conversation — create, modify, delete, list, and bind agents to IM chats by calling REST APIs. This skill is exclusive to the Default Agent (full-access). Use when the user wants to manage agents conversationally, e.g. "create a code review agent", "list all agents", "bind agent X to this group", "delete agent Y", "创建一个专家", "帮我建个专家", "管理专家", "编辑专家", "删除专家", "专家列表", "把专家 X 绑定到这个群".

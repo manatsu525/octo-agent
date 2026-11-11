@@ -1,4 +1,5 @@
 ---
+catalog: "Review local code changes for correctness, conventions, performance, tests, security (review the diff, 代码评审, review 一下改动)."
 name: code-review
 description: Review local code changes. Uses an isolated sub-agent for unbiased analysis when the main agent wrote the code; reviews directly in fresh review-only sessions. Checks correctness, conventions, performance, tests, security, and tech design compliance. Use when the user wants a code review or says "review the diff" / "review my changes" / "代码评审" / "review 一下改动".
 ---

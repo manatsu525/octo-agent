@@ -74,6 +74,28 @@ type ServerEntry struct {
 	// run the command as-is — useful for self-installed tools (e.g. codegraph)
 	// whose absolute path is needed because they live outside the default PATH.
 	AllowArbitraryCommand bool `json:"allow_arbitrary_command,omitempty"`
+
+	// Optional: expose only these tools to the model (server tool names, plus
+	// "resource_read" / "prompt_get" for the synthetic surfaces). Empty means
+	// every tool the server advertises. Trimming unused tools keeps their
+	// schemas out of every request.
+	Tools []string `json:"tools,omitempty"`
+
+	// Optional: per-tool rewrites of what the model sees, keyed by server tool
+	// name. See ToolOverride.
+	ToolOverrides map[string]ToolOverride `json:"tool_overrides,omitempty"`
+}
+
+// ToolOverride rewrites the model-facing definition of one MCP tool without
+// changing how it is called.
+type ToolOverride struct {
+	// Description replaces the server's tool description when non-empty.
+	Description string `json:"description,omitempty"`
+	// Params, when non-empty, keeps only these input properties (and drops
+	// the rest from "required"). Calls are forwarded unchanged.
+	Params []string `json:"params,omitempty"`
+	// ParamDescriptions replaces individual property descriptions.
+	ParamDescriptions map[string]string `json:"param_descriptions,omitempty"`
 }
 
 // Kind reports which transport this entry uses. Returns "" when neither

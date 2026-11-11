@@ -166,21 +166,8 @@ type AskUserQuestionTool struct{}
 
 func (AskUserQuestionTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "ask_user_question",
-		Description: "Ask the user up to four structured clarifying questions and wait for their answers. " +
-			"Use this only when you're blocked on a decision that is genuinely the user's to make: one you " +
-			"cannot resolve from the request, the code, or sensible defaults — preferences (\"which library?\"), " +
-			"trade-offs (\"prioritize speed or readability?\"), or scope (\"include the migration too?\"). " +
-			"Don't use it for information you could find in the repo, or for choices with a conventional " +
-			"default — pick the obvious option, say so, and continue. " +
-			"Every question needs 2-4 mutually exclusive options; if you recommend one, make it the first " +
-			"option and add \"(Recommended)\" to its label. Don't add an \"Other\" entry — the user always " +
-			"gets one, plus a way to reply in prose instead of picking. " +
-			"Set multiSelect=true when the choices are NOT mutually exclusive and the user may pick several. " +
-			"Use `preview` only when presenting concrete artifacts the user needs to compare side by side " +
-			"(ASCII mockups of a layout, code snippets of competing implementations, config or diagram " +
-			"variants) — not for simple preference questions, where labels and descriptions suffice. " +
-			"Previews are single-select only.",
+		Name:        "ask_user_question",
+		Description: "Ask the user 1-4 structured questions and wait for answers, only for decisions genuinely theirs that the request, code or sensible defaults can't settle (preference, trade-off, scope). Don't ask what you can look up or what has a conventional default: pick it, say so, continue. Each question has 2-4 mutually exclusive options (put a recommended one first with \"(Recommended)\"); never add \"Other\" (the user always gets free text). multiSelect=true when choices aren't exclusive. `preview` only for comparing concrete artifacts side by side (ASCII mockups, code, config variants), single-select only.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -188,41 +175,41 @@ func (AskUserQuestionTool) Definition() agent.ToolDefinition {
 					"type":        "array",
 					"minItems":    1,
 					"maxItems":    4,
-					"description": "The questions to ask (1-4). Question texts must be unique.",
+					"description": "1-4 questions with unique texts.",
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
 							"question": map[string]any{
 								"type":        "string",
-								"description": "The complete question, with punctuation. Should be ONE sentence asking ONE thing. Do not pack multiple questions (\"1) … 2) …\") into a single string — add another entry to `questions` instead. If you need more context, put it in the option labels and descriptions.",
+								"description": "One sentence asking one thing; put extra questions in separate entries and context in the options.",
 							},
 							"header": map[string]any{
 								"type":        "string",
-								"description": "Very short label for this question's tab (max 12 chars). Examples: \"Auth method\", \"Scope\", \"Library\".",
+								"description": "Tab label, max 12 chars (e.g. \"Scope\").",
 							},
 							"multiSelect": map[string]any{
 								"type":        "boolean",
-								"description": "Set true when the choices are NOT mutually exclusive (e.g. \"which features should we enable?\"). The user can then pick more than one. Previews are ignored for multi-select questions.",
+								"description": "true when several choices may be picked.",
 							},
 							"options": map[string]any{
 								"type":        "array",
 								"minItems":    2,
 								"maxItems":    4,
-								"description": "2-4 distinct choices. Labels must be unique within the question. A question with only one option has no decision in it — don't ask it.",
+								"description": "2-4 choices with unique labels.",
 								"items": map[string]any{
 									"type": "object",
 									"properties": map[string]any{
 										"label": map[string]any{
 											"type":        "string",
-											"description": "The choice, as a complete label (\"OAuth with PKCE\" not just \"OAuth\"). Concise — 1-5 words.",
+											"description": "Complete 1-5 word label (\"OAuth with PKCE\", not \"OAuth\").",
 										},
 										"description": map[string]any{
 											"type":        "string",
-											"description": "What this option means or what happens if chosen — trade-offs and implications. Shown beneath the label.",
+											"description": "What choosing it means: trade-offs, implications.",
 										},
 										"preview": map[string]any{
 											"type":        "string",
-											"description": "Concrete artifact for this option, rendered in a monospace pane beside the choices: an ASCII mockup, a code snippet, a config or diagram variant. Multi-line text is supported. Only use it when the user needs to compare artifacts, and only on single-select questions.",
+											"description": "Optional multi-line artifact shown in a monospace pane (mockup, code, config).",
 										},
 									},
 									"required": []string{"label"},

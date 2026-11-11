@@ -24,17 +24,8 @@ const (
 
 func (EditFileTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "edit_file",
-		Description: "Replace an exact substring in an existing file. " +
-			"You MUST read the file with read_file before calling this tool. " +
-			"old_string must be the file's raw content — never include the line-number " +
-			"column (e.g. \"     3\\t\") that read_file prepends for display; that prefix " +
-			"is not part of the file and will cause a not-found error. " +
-			"old_string must appear exactly once (or set replace_all=true to swap every occurrence). " +
-			"The file must already exist — use write_file to create. " +
-			"Include enough surrounding context in old_string (typically 2-4 lines) " +
-			"to make it unique. If old_string matches multiple times and replace_all is false, " +
-			"the edit will fail — add more context to disambiguate.",
+		Name:        "edit_file",
+		Description: "Replace an exact substring in an existing file you have read with read_file (create files with write_file). old_string is raw file text without read_file's line-number prefix, and must match exactly once unless replace_all=true; include 2-4 lines of context to make it unique.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

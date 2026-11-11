@@ -95,12 +95,8 @@ type TaskCreateTool struct{}
 
 func (TaskCreateTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "task_create",
-		Description: "Add a new task to the session's task list. Use when you're breaking " +
-			"down work into discrete, trackable steps the user can see. Each task lands as " +
-			"`pending`; mark it `in_progress` via task_update when you start, `completed` when " +
-			"done. Use sparingly — single trivial commands don't need a task. Returns the " +
-			"assigned numeric ID.",
+		Name:        "task_create",
+		Description: "Add a task (status pending) to the session's visible task list for multi-step work; mark it in_progress/completed with task_update as you go. Not for trivial single steps. Returns the numeric ID.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -110,11 +106,11 @@ func (TaskCreateTool) Definition() agent.ToolDefinition {
 				},
 				"description": map[string]any{
 					"type":        "string",
-					"description": "Optional longer detail / acceptance criteria. Use when the subject alone isn't enough to know when the task is done.",
+					"description": "Optional detail or acceptance criteria.",
 				},
 				"active_form": map[string]any{
 					"type":        "string",
-					"description": "Optional present-continuous form for the spinner UI (e.g. 'Migrating auth middleware'). Defaults to the subject if omitted.",
+					"description": "Optional present-continuous text for the spinner, e.g. 'Migrating auth middleware'.",
 				},
 			},
 			"required": []string{"subject"},
@@ -157,12 +153,8 @@ type TaskUpdateTool struct{}
 
 func (TaskUpdateTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "task_update",
-		Description: "Update an existing task. Most common use: shift status as work progresses " +
-			"(`pending` → `in_progress` when you start a step, `in_progress` → `completed` when " +
-			"you finish). Can also rewrite subject / description / active_form if the scope of " +
-			"the task changes. Set status to `deleted` to drop a task that was misclassified or " +
-			"no longer applies. Only the fields you provide are touched.",
+		Name:        "task_update",
+		Description: "Update a task: usually status pending → in_progress → completed; can also rewrite subject/description/active_form, or set `deleted` for a task that no longer applies. Only given fields change.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -173,7 +165,7 @@ func (TaskUpdateTool) Definition() agent.ToolDefinition {
 				"status": map[string]any{
 					"type":        "string",
 					"enum":        []string{"pending", "in_progress", "completed", "deleted"},
-					"description": "New status. `deleted` removes the task from /tasks views but the ID stays reserved (so stale references surface clearly).",
+					"description": "New status; `deleted` hides the task but keeps its ID reserved.",
 				},
 				"subject": map[string]any{
 					"type":        "string",

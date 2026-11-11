@@ -103,13 +103,8 @@ type AgentStatusTool struct{}
 
 func (AgentStatusTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "sub_agent_status",
-		Description: "Check on async sub-agents, but do not use this as a polling loop while waiting for a " +
-			"background sub-agent to finish — wait for the completion notification instead. With agent_id, report " +
-			"that sub-agent's state (working/idle/exited) and its latest result; without agent_id, list all tracked " +
-			"sub-agents (working ones plus idle-but-resumable ones). Use this tool only when you suspect a sub-agent is stuck or when you need to know " +
-			"which agents are still running. An [agent …] tag id from an inline reply works here too: it reports " +
-			"that child's last round and whether it can still be resumed with sub_agent_send.",
+		Name:        "sub_agent_status",
+		Description: "Check async sub-agents: with agent_id, its state (working/idle/exited), latest result and whether sub_agent_send can resume it (an [agent …] tag id works too); without, list working and resumable ones. Only for a suspected hang or to see what's running; never poll while waiting, the completion notification comes by itself.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

@@ -41,7 +41,18 @@ var activeMessenger ChannelMessenger
 // Pass nil to disable (the tool then doesn't appear in DefaultToolsFor).
 func SetMessenger(m ChannelMessenger) { activeMessenger = m }
 
-func messengerEnabled() bool { return activeMessenger != nil }
+func messengerEnabled() bool {
+	return activeMessenger != nil && (messengerAvailable == nil || messengerAvailable())
+}
+
+// messengerAvailable, when set, further gates send_message/send_file on there
+// being an IM channel to reach (the server wires it to "any channel enabled in
+// channels.yml"), so a deployment without IM doesn't carry their schemas in
+// every request.
+var messengerAvailable func() bool
+
+// SetMessengerAvailable registers the gate described on messengerAvailable.
+func SetMessengerAvailable(f func() bool) { messengerAvailable = f }
 
 // SendMessageTool lets the model send a plain-text message to an IM chat
 // (WeChat, Telegram, Discord, …) from any turn — including a web session with

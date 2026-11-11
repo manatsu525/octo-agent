@@ -328,16 +328,18 @@ func openMCPLogFile() *os.File {
 }
 
 // suggestEnabled resolves whether to offer after-turn follow-up suggestions:
-// on by default, off when --no-suggest is set or OCTO_SUGGEST is falsey.
+// off by default (each suggestion is a hidden extra request carrying the full
+// prompt, tools and history); on only when OCTO_SUGGEST is truthy and
+// --no-suggest is not set.
 func suggestEnabled(noSuggestFlag bool) bool {
 	if noSuggestFlag {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("OCTO_SUGGEST"))) {
-	case "0", "false", "off", "no":
-		return false
+	case "1", "true", "on", "yes":
+		return true
 	}
-	return true
+	return false
 }
 
 // tuiDisabledByEnv reports whether OCTO_TUI is set to a falsey value, the env

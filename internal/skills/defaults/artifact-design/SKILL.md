@@ -1,4 +1,5 @@
 ---
+catalog: "Read BEFORE writing any HTML/Markdown page for the Artifacts panel: reports, dashboards, diagrams, generated UIs, slides-style pages, 3D (画架构图/做仪表盘/报告页); charts → also references/charts.md."
 name: artifact-design
 description: Design guidance for any HTML/Markdown file shown in octo's Artifacts panel — reports, dashboards, architecture/system diagrams, generated UIs, slide-style pages, 3D scenes. Read this BEFORE writing the file, not after — it calibrates how much design effort the request warrants and covers the panel's real constraints (the page is a real web page that can reference files beside it by relative path, narrow default width, no live theme push). Use when the user asks to "画架构图" / "generate a diagram" / "make a dashboard" / "produce a report page" / "visualize this as a page" / build any artifact meant to be looked at rather than edited. If the page contains a chart, graph, plot, heatmap, or stat tile, also read references/charts.md — chart-type selection, color systems, legend/axis/tooltip conventions.
 ---

@@ -1,4 +1,5 @@
 ---
+catalog: "Create, read or edit Excel .xlsx files with openpyxl: formulas, styling, charts, validation (表格, Excel, 电子表格)."
 name: office-xlsx
 description: Create, read, and edit Excel (.xlsx) spreadsheets programmatically with openpyxl — cell values, formulas, styling (fonts/fills/borders/alignment/number formats), merged cells, multiple sheets, charts, and data validation. Use whenever the user wants a spreadsheet created, inspected, or modified, or references an .xlsx file by name or path.
 license: MIT (adapted from claude-office-skills/skills; complete terms in LICENSE.txt)

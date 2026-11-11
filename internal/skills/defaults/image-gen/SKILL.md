@@ -1,4 +1,5 @@
 ---
+catalog: "Get images as files: AI generation (many providers), openly-licensed stock search, slicing a sheet; single or batch manifest (生成图片, 配图, 找素材图)."
 name: image-gen
 description: >
   Acquire images as files — generate them with an AI image model (14 providers:

@@ -63,73 +63,19 @@ func (WorkflowTool) Definition() agent.ToolDefinition {
 	// The execution contract differs by transport: interactive transports run
 	// workflows detached (with a completion notification), the headless
 	// one-shot runs them inline. Tell the model which one it gets.
-	mode := "Runs in the BACKGROUND: this call returns a run id immediately, and the system " +
-		"automatically notifies you with the result when the run finishes — do NOT poll " +
-		"workflow_status while it runs. (A long multi-agent run won't block you or the " +
-		"user while it executes.)"
+	mode := "Runs in the BACKGROUND: returns a run id at once and the result arrives as a notification; do NOT poll workflow_status."
 	if workflowForeground.Load() {
-		mode = "Runs in the FOREGROUND: this call blocks until the script completes and " +
-			"returns the final result directly — no run id to track, nothing to poll, " +
-			"no notification to wait for."
+		mode = "Runs in the FOREGROUND: blocks until the script finishes and returns the result directly (no run id, nothing to poll)."
 	}
 	return agent.ToolDefinition{
-		Name: "workflow",
-		Description: "Run a Ruby orchestration script for deterministic multi-agent work — " +
-			"either inline via `script`, or a saved workflow by `name` (see the name parameter). " +
-			"Use when a task decomposes into many sub-agent calls with explicit control flow " +
-			"(fan-out, pipelines, loops, conditionals) that you want executed reliably rather " +
-			"than improvised across turns.\n\n" +
-			mode + "\n\n" +
-			"The script runs in a sandboxed, IO-free mruby interpreter: Array/Hash/String/" +
-			"Integer/Regexp logic and JSON.parse/JSON.generate are available (Regexp includes " +
-			"literal /.../ patterns, =~, and String#match/scan/gsub/sub — the engine is RE2, so " +
-			"backreferences and lookaround inside the pattern are NOT supported, though \\1/\\k<name> " +
-			"in a gsub/sub replacement string are. Two RE2 gotchas: to make . cross newlines use the " +
-			"/m suffix, NOT an inline (?m) (inline (?m) means multiline, not dot-all, here); the /x " +
-			"extended/whitespace mode is unavailable; use \\z, not \\Z). There is NO File, Dir, " +
-			"Time, Process, or shell backticks (`cmd`) — referencing any of them raises a Ruby " +
-			"error before the script produces any result. The ONLY way to touch the filesystem, " +
-			"run a shell/git/gh command, or get the current date is through agent(prompt, opts) " +
-			"below, which delegates to a real sub-agent with real tools. To persist a report or " +
-			"state file, tell an agent() call to write it (it has write_file) — never call " +
-			"File.write yourself. To get STRUCTURED data out of a sub-agent, pass " +
-			"agent(prompt, schema: ...) and JSON.parse its reply — do NOT regex-scrape fields out " +
-			"of a plain-prose agent() reply when you can have it returned as validated JSON. " +
-			"Primitives:\n" +
-			"- `agent(prompt, opts = {}) -> String`: run one sub-agent to completion, return " +
-			"its reply. Inside parallel/pipeline it runs concurrently with siblings. " +
-			"Optional opts: `model:` (override the model for this call — pass \"lite\" for the " +
-			"session's lite model on mechanical stages; falls back to the parent's model when " +
-			"the session has none), `tools:` (Array restricting the child's tools), " +
-			"`read_only: true` (strip write_file/edit_file), `schema:` (a JSON Schema as a " +
-			"JSON **string** — the call then returns the sub-agent's reply as JSON text matching it), " +
-			"`isolation: \"worktree\"` (run the sub-agent in a fresh git worktree so its file changes " +
-			"don't touch the main checkout — useful for parallel agents that write files; changes are " +
-			"left on a branch named in the reply).\n" +
-			"- `parallel(items) { |it| ... } -> Array`: run the block for every item " +
-			"concurrently; returns results in input order.\n" +
-			"- `pipeline(items, stage1, stage2, ...) -> Array`: run each item through all " +
-			"stages; items flow independently (no barrier between stages). Stages are lambdas.\n" +
-			"- `log(msg)`: surface a progress line.\n" +
-			"- `phase(title)`: mark the start of a named stage; groups the progress " +
-			"stream into steps (cosmetic, does not affect scheduling).\n" +
-			"- `budget_remaining -> Integer`: remaining output-token budget.\n" +
-			"- `args -> Hash/Array/scalar`: the input value passed as this tool's `args` " +
-			"parameter, parsed from JSON into native Ruby (nil when none). Use it to " +
-			"parameterize a reusable script, e.g. `target = args[\"target\"]`.\n" +
-			"- `JSON.parse(str)` / `JSON.generate(obj)` are available: decode a " +
-			"schema-constrained agent() reply, or encode structured data back into a prompt.\n\n" +
-			"The script's final expression is the run's result. Example:\n" +
-			"```ruby\n" +
-			"findings = parallel(%w[auth db cache]) { |area| agent(\"Audit the #{area} module for bugs\") }\n" +
-			"\"Reviewed #{findings.size} modules:\\n\" + findings.join(\"\\n---\\n\")\n" +
-			"```",
+		Name:        "workflow",
+		Description: "Run a Ruby script that orchestrates many sub-agent calls with explicit control flow (fan-out, pipelines, loops, conditionals), inline via `script` or a saved one by `name`.\n\n" + mode + "\n\nThe script runs in sandboxed, IO-free mruby: Array/Hash/String/Integer/Regexp and JSON.parse/JSON.generate only. Regexp is RE2: no backreferences or lookaround in patterns (\\1/\\k<name> work in gsub/sub replacements), use /m (not inline (?m)) for dot-all, no /x, use \\z not \\Z. There is NO File, Dir, Time, Process or backticks (referencing them errors). Filesystem, shell/git/gh and the date are reachable only through agent(); have an agent write any report or state file. For structured output use agent(prompt, schema: ...) and JSON.parse it rather than regex-scraping prose.\nPrimitives:\n- `agent(prompt, opts={}) -> String`: one sub-agent to completion (concurrent inside parallel/pipeline). opts: `model:` (\"lite\" for mechanical stages), `tools:` (Array), `read_only: true`, `schema:` (JSON Schema as a JSON string; reply is matching JSON), `isolation: \"worktree\"` (fresh git worktree; changes left on a branch named in the reply).\n- `parallel(items) { |it| ... } -> Array` (input order); `pipeline(items, stage1, stage2, ...) -> Array` (lambdas; items flow independently).\n- `log(msg)`, `phase(title)` (progress grouping), `budget_remaining -> Integer`, `args` (the `args` parameter as native Ruby, nil when none).\nThe final expression is the result. Example:\n```ruby\nfindings = parallel(%w[auth db cache]) { |area| agent(\"Audit the #{area} module for bugs\") }\n\"Reviewed #{findings.size} modules:\\n\" + findings.join(\"\\n---\\n\")\n```",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"script": map[string]any{
 					"type":        "string",
-					"description": "The Ruby workflow script. Its last expression is the run's result. Use agent()/parallel()/pipeline()/log() to orchestrate sub-agents. Provide exactly one of script or name.",
+					"description": "The Ruby script; its last expression is the result. Give exactly one of script or name.",
 				},
 				"name": map[string]any{
 					"type":        "string",
@@ -137,18 +83,15 @@ func (WorkflowTool) Definition() agent.ToolDefinition {
 				},
 				"description": map[string]any{
 					"type":        "string",
-					"description": "Short human-readable label for this workflow (3-7 words). Shown in the status list and progress UI.",
+					"description": "Short label, 3-7 words, shown in the UI.",
 				},
 				"args": map[string]any{
 					"type":        "object",
-					"description": "Input value for the script, readable as the `args` primitive (parsed to native Ruby). Use to parameterize a reusable workflow instead of hardcoding values into the script.",
+					"description": "Input for the script, read via the `args` primitive.",
 				},
 				"resume_from": map[string]any{
-					"type": "string",
-					"description": "Run id of a prior workflow run to resume from " +
-						"(format: wf-YYYYMMDD-HHMMSS-xxxxxxxx, shown as \"[workflow run: ...]\" " +
-						"in a previous result). Completed agent() calls are replayed instantly " +
-						"without re-running. The script must be identical to the original run.",
+					"type":        "string",
+					"description": "Run id (wf-YYYYMMDD-HHMMSS-xxxxxxxx, from a previous \"[workflow run: ...]\") to resume; finished agent() calls replay instantly. The script must be identical.",
 				},
 			},
 		},
@@ -419,14 +362,8 @@ type WorkflowStatusTool struct{}
 
 func (WorkflowStatusTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "workflow_status",
-		Description: "Check background workflow runs started with the workflow tool. " +
-			"With no run_id: list this session's runs and their status (running/done/error). " +
-			"With a run_id: the full result (or error + how to fix/resume) plus the captured log. " +
-			"Use this for ON-DEMAND checks (e.g. the user asks how a run is going) or to collect " +
-			"a result after the completion notification — do NOT call it in a polling loop; the " +
-			"system pushes a notification when a run finishes. Repeated still-running reads of " +
-			"the same run are detected as polling and trigger a hard STOP reminder.",
+		Name:        "workflow_status",
+		Description: "Check workflow runs: no run_id lists this session's runs (running/done/error); a run_id gives its result or error (with how to fix/resume) and log. For on-demand checks or collecting a result after the notification; never poll (repeated still-running reads trigger a STOP reminder).",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -494,11 +431,8 @@ type WorkflowKillTool struct{}
 
 func (WorkflowKillTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "workflow_kill",
-		Description: "Cancel a running background workflow by run id (e.g. \"wf_1\"). Use when " +
-			"workflow_status shows a run is stuck (a large, growing 'last activity' gap) or you " +
-			"no longer want its result. Cancellation propagates to the workflow's in-flight " +
-			"sub-agents. A run that already finished is left as-is.",
+		Name:        "workflow_kill",
+		Description: "Cancel a running workflow by run id (e.g. \"wf_1\") when it is stuck (growing 'last activity' gap) or no longer wanted; its in-flight sub-agents are cancelled too. Finished runs are left as-is.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

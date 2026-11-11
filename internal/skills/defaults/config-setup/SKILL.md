@@ -1,4 +1,5 @@
 ---
+catalog: "Configure octo settings: model providers, API keys, default/lite model, reasoning, permission mode (配置模型, 添加模型, 切换模型, 修改设置)."
 name: config-setup
 system: true
 description: |

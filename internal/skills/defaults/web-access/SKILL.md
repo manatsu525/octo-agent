@@ -1,4 +1,5 @@
 ---
+catalog: "复杂网页任务：反爬或需登录的平台（小红书、公众号、微博、推特、知乎）、结构未知的站点、多来源核实、图片/视频内容、web_search/web_fetch 拿不到时升级真实浏览器。简单抓取不用加载。"
 name: web-access
 license: MIT
 description:

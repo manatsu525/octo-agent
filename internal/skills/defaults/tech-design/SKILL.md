@@ -1,4 +1,5 @@
 ---
+catalog: "Write a backend technical design doc from a PRD or feature description (写技术方案, 出个设计文档, tech design)."
 name: tech-design
 license: MIT
 description:

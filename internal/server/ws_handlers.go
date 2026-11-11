@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -1948,7 +1949,9 @@ func (s *Server) doAgentTurn(sess *agent.Session, content string, blocks []agent
 	// turn gets cleared (the browser's chatSuggestion store only mutates on
 	// next_message_suggestion — without this, a timed-out generation would
 	// leave the prior turn's chip stuck on screen).
-	if err == nil {
+	// Off by default: each suggestion is a hidden extra request carrying the
+	// full prompt, tools and history. OCTO_SUGGEST=1 turns it back on.
+	if err == nil && suggestEnvEnabled() {
 		go func() {
 			defer s.recoverBg("suggestion generation")
 			ctx, cancel := context.WithTimeout(context.Background(), throwawayGenerationTimeout)
@@ -2734,4 +2737,14 @@ func extractThinking(reply *agent.Reply) string {
 		}
 	}
 	return ""
+}
+
+// suggestEnvEnabled reports whether after-turn next-message suggestions are
+// enabled for the web UI (OCTO_SUGGEST truthy). Default off.
+func suggestEnvEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("OCTO_SUGGEST"))) {
+	case "1", "true", "on", "yes":
+		return true
+	}
+	return false
 }

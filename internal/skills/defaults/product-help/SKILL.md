@@ -1,4 +1,5 @@
 ---
+catalog: "How to use octo, its docs, themes/skills install/GenUI reference, and troubleshooting when something fails (怎么用, 不工作, 报错, 启动不了)."
 name: product-help
 description: Answer questions about how to use octo, or diagnose something that isn't working, by reading the product documentation. Use when the user asks "how do I...", "what is...", "where is the docs for...", any usage/help question about octo itself, or reports a problem — "not working", "won't start", "error", "connection refused", "daemon won't start" — by reading TROUBLESHOOTING.md.
 ---

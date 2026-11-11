@@ -34,14 +34,8 @@ type RestartServerTool struct{}
 
 func (RestartServerTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "restart_server",
-		Description: "Schedule a graceful restart of the octo server process. Use after replacing the " +
-			"octo binary (upgrade) or changing configuration that is only read at startup " +
-			"(provider, model, system prompt, channels.yml). The restart happens AFTER the " +
-			"current turn completes: in-flight turns drain first, then the supervisor " +
-			"respawns the server from the binary on disk. Tell the user the server is " +
-			"restarting in your reply — it will be briefly unreachable, and web/IM clients " +
-			"reconnect automatically.",
+		Name:        "restart_server",
+		Description: "Gracefully restart the octo server after replacing its binary or changing startup-only config (provider, model, system prompt, channels.yml). Runs after this turn: in-flight turns drain, then the supervisor respawns it. Tell the user it will be briefly unreachable (clients reconnect).",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

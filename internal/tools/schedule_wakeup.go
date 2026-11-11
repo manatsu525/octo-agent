@@ -117,38 +117,8 @@ type ScheduleWakeupTool struct{}
 
 func (ScheduleWakeupTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name: "schedule_wakeup",
-		Description: "Schedule your own next turn — the mechanism behind an in-session loop. After this " +
-			"turn ends and the session goes idle, the system re-runs `prompt` as a fresh user turn " +
-			"after `delay_seconds`. Use it to pace a recurring task without the user re-prompting.\n\n" +
-			"The user starts a loop by typing `/loop [interval] <task>`: a leading duration " +
-			"(`/loop 5m check the build`) selects INTERVAL mode below — parse it to seconds and call " +
-			"this tool once with repeat=true; no leading duration (`/loop keep refining the draft`) " +
-			"selects DYNAMIC mode. If the task is unclear, ask one clarifying question before starting. " +
-			"You can also start a loop on your own initiative, without `/loop`.\n\n" +
-			"Two modes:\n" +
-			"- DYNAMIC (repeat=false, the default): fires once. To keep looping you must call this " +
-			"tool again on the next turn; simply NOT calling it ends the loop. Use when you decide " +
-			"the cadence turn-by-turn or want to stop once the task is done.\n" +
-			"- INTERVAL (repeat=true): the wakeup re-arms itself on the same cadence and keeps firing " +
-			"on schedule. Use for a steady \"every N seconds\" loop.\n\n" +
-			"Make each tick a single bounded unit of work that returns promptly — never a `prompt` " +
-			"that spins until it times out. If the loop has a completion goal, put the check in the " +
-			"`prompt` and stop (cancel, below) once it's met — e.g. \"check whether the PR's CI " +
-			"passed; if it did, merge and stop by cancelling; otherwise report the status in one " +
-			"line.\" A loop with no natural end (a heartbeat, a monitor, a periodic emit) legitimately " +
-			"has no completion check and just runs until the user stops it or the safety cap.\n\n" +
-			"delay_seconds is clamped to [60, 3600]. Picking a cadence: the model's prompt cache has a " +
-			"~5-minute TTL, so a delay under 300s keeps context warm (right for actively polling " +
-			"external state like a CI run or a deploy), while 300s+ pays a cache miss (right when " +
-			"there's genuinely nothing to check sooner). Avoid exactly 300s — it pays the miss without " +
-			"amortizing it. For idle ticks with no specific signal to watch, default to 1200-1800s.\n\n" +
-			"The loop COEXISTS with the user: a message from the user does NOT stop it — the user can " +
-			"chat with you while it keeps ticking. To STOP an interval loop, call this tool with " +
-			"cancel=true (do this when the user asks you to stop, or pause); a dynamic loop also stops " +
-			"by simply not re-arming. The user can also hard-stop with Ctrl+C. This is an in-session " +
-			"loop — for a schedule that must survive restarts or run while you're away, use the " +
-			"cron-task-creator skill instead.",
+		Name:        "schedule_wakeup",
+		Description: "Schedule your own next turn (an in-session loop): after this turn ends and the session is idle, `prompt` is re-run as a user turn after `delay_seconds`.\n\n`/loop [interval] <task>` from the user starts one: a leading duration (`/loop 5m check the build`) means INTERVAL mode (convert to seconds, call once with repeat=true); none means DYNAMIC mode. Ask one question first if the task is unclear. You may also start a loop yourself.\n- DYNAMIC (repeat=false, default): fires once; call again next turn to continue, or don't to end it.\n- INTERVAL (repeat=true): re-arms itself on the same cadence; don't re-call inside a tick.\nMake each tick one bounded unit of work that returns promptly. If the loop has an end condition, check it in `prompt` and cancel once met (e.g. \"if CI passed, merge and cancel; else report status in one line\"); monitors/heartbeats may run until stopped.\ndelay_seconds is clamped to [60, 3600]. The prompt cache lives ~5 min: under 300s keeps it warm (active polling of CI or a deploy); 300s+ pays a miss, so avoid exactly 300; idle ticks with nothing specific to watch: 1200-1800s.\nUser messages don't stop the loop. Stop an interval loop with cancel=true when the user asks to stop or pause (Ctrl+C also hard-stops). It's in-session only; for schedules that survive restarts use the cron-task-creator skill.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -158,19 +128,19 @@ func (ScheduleWakeupTool) Definition() agent.ToolDefinition {
 				},
 				"reason": map[string]any{
 					"type":        "string",
-					"description": "One short sentence on what you're waiting for and why this cadence. Shown to the user. Be specific — \"watching CI run\" beats \"waiting\".",
+					"description": "One specific sentence on what you're waiting for and why this cadence (shown to the user), e.g. \"watching CI run\".",
 				},
 				"prompt": map[string]any{
 					"type":        "string",
-					"description": "The text delivered as a user turn on wakeup. Pass the same loop task verbatim each time so the next firing repeats the task.",
+					"description": "Text delivered as the user turn on wakeup; pass the same loop task verbatim each time.",
 				},
 				"repeat": map[string]any{
 					"type":        "boolean",
-					"description": "false (default) for dynamic mode (fires once; you must call schedule_wakeup again on the next turn to continue). true for interval mode (the wakeup re-arms automatically on the same cadence; do NOT call schedule_wakeup again inside each tick).",
+					"description": "false (default): dynamic, fires once. true: interval, re-arms automatically.",
 				},
 				"cancel": map[string]any{
 					"type":        "boolean",
-					"description": "true to STOP the current loop (cancel any pending wakeup). Use when the user asks you to stop or pause. The other fields are ignored when cancel is true.",
+					"description": "true stops the loop (cancels any pending wakeup); other fields ignored.",
 				},
 			},
 			"required": []string{"delay_seconds", "reason", "prompt"},
